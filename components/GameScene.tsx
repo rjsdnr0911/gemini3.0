@@ -13,6 +13,7 @@ import { useGameStore } from '../store';
 
 export const GameScene = () => {
   const gameState = useGameStore(state => state.gameState);
+  const isMultiplayer = useGameStore(state => state.isMultiplayer);
 
   return (
     <div className="w-full h-full bg-gray-900">
@@ -34,7 +35,7 @@ export const GameScene = () => {
           <Map />
           {gameState !== GameState.MENU && <Player />}
           {/* Only show AI Enemy in Singleplayer */}
-          {gameState !== GameState.MENU && !useGameStore(state => state.isMultiplayer) && <Enemy />}
+          {gameState !== GameState.MENU && !isMultiplayer && <Enemy />}
           {/* RemotePlayer added here, assuming it interacts with physics */}
           {gameState !== GameState.MENU && <RemotePlayer />}
         </Physics>
