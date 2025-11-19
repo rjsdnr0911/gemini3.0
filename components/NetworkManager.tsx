@@ -81,8 +81,7 @@ export const NetworkManager = () => {
                 updateRemotePlayer(packet.payload);
                 break;
             case 'SHOOT':
-                // Visuals handled by event listener in Effects.tsx? 
-                // We need to dispatch local event for Effects to pick up
+                // Visuals handled by event listener in Effects.tsx
                 window.dispatchEvent(new CustomEvent('SHOOT', {
                     detail: {
                         start: packet.payload.start,
@@ -92,17 +91,24 @@ export const NetworkManager = () => {
                 }));
                 break;
             case 'HIT':
-                // I got hit
-                setHealth(packet.payload.newHealth);
+                // Received damage
+                const dmg = packet.payload.damage;
+                const newHealth = Math.max(0, useGameStore.getState().health - dmg);
+                setHealth(newHealth);
+
+                // If I died, tell the killer
+                if (newHealth <= 0) {
+                    connRef.current?.send({
+                        type: 'KILL',
+                        timestamp: Date.now(),
+                        payload: { victim: peerRef.current?.id }
+                    });
+                    setGameState(GameState.GAME_OVER);
+                }
                 break;
             case 'KILL':
-                // I died (confirmed by killer) or I killed?
-                // Usually killer sends "I killed you" or victim sends "I died".
-                // Let's trust the shooter for hit detection (Client Authoritative)
-                if (packet.payload.victim === peerRef.current?.id) {
-                    // I died
-                    incrementEnemyScore();
-                }
+                // I killed the opponent
+                incrementPlayerScore();
                 break;
             case 'START':
                 setGameState(GameState.PLAYING);
@@ -169,23 +175,25 @@ export const NetworkManager = () => {
         };
 
         const sendHit = (e: any) => {
-            // I hit the enemy
             if (connRef.current?.open) {
-                // We need to tell enemy they got hit.
-                // But wait, Player.tsx handles local damage for AI.
-                // For MP, we need to send damage to opponent.
-                // Let's assume Player.tsx dispatches 'ENEMY_HIT' when hitting the "RemotePlayer" collider.
-                // We need to distinguish AI hit vs Player hit.
+                // I hit the enemy (RemotePlayer)
+                // Send damage packet
+                connRef.current.send({
+                    type: 'HIT',
+                    timestamp: Date.now(),
+                    payload: { damage: e.detail.damage }
+                });
             }
         };
 
         window.addEventListener('PLAYER_UPDATE', sendUpdate);
-        window.addEventListener('SHOOT', sendShoot); // Re-use local shoot event?
-        // Wait, 'SHOOT' event in Player.tsx is for visuals. We can piggyback on it.
+        window.addEventListener('SHOOT', sendShoot);
+        window.addEventListener('ENEMY_HIT', sendHit); // Listen for hits on RemotePlayer
 
         return () => {
             window.removeEventListener('PLAYER_UPDATE', sendUpdate);
             window.removeEventListener('SHOOT', sendShoot);
+            window.removeEventListener('ENEMY_HIT', sendHit);
         };
     }, []);
 

@@ -33,7 +33,8 @@ export const GameScene = () => {
         <Physics gravity={[0, -9.81, 0]}>
           <Map />
           {gameState !== GameState.MENU && <Player />}
-          {gameState !== GameState.MENU && <Enemy />}
+          {/* Only show AI Enemy in Singleplayer */}
+          {gameState !== GameState.MENU && !useGameStore(state => state.isMultiplayer) && <Enemy />}
           {/* RemotePlayer added here, assuming it interacts with physics */}
           {gameState !== GameState.MENU && <RemotePlayer />}
         </Physics>

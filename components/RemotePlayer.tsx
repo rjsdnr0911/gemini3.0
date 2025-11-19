@@ -49,7 +49,7 @@ export const RemotePlayer = () => {
             </Text>
 
             {/* Body Capsule Representation */}
-            <mesh ref={bodyRef} position={[0, 0.9, 0]}>
+            <mesh ref={bodyRef} position={[0, 0.9, 0]} name="ENEMY_HITBOX">
                 <capsuleGeometry args={[0.4, 1.8, 4, 8]} />
                 <meshStandardMaterial color="#ef4444" roughness={0.8} />
             </mesh>
