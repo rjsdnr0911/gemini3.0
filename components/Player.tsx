@@ -30,6 +30,7 @@ export const Player = () => {
   const isCycling = useRef(false); // For Sniper bolt action
 
   const lastShotTime = useRef(0);
+  const lastStepTime = useRef(0);
   const currentRecoil = useRef(0);
   const baseFov = 75;
   const aimFovRifle = 40;
@@ -64,11 +65,22 @@ export const Player = () => {
     state.setReloading(true);
     audio.playReload();
 
-    setTimeout(() => {
+    const duration = state.currentWeapon === WeaponType.SNIPER ? 3000 : 2000;
+    const timer = setTimeout(() => {
       state.reloadWeapon();
       state.setReloading(false);
-    }, state.currentWeapon === WeaponType.SNIPER ? 3000 : 2000);
+    }, duration);
+
+    // Store timer reference for cleanup (using a ref defined in component scope)
+    reloadTimer.current = timer;
   };
+
+  const reloadTimer = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    return () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    };
+  }, []);
 
   // --- Input Handling ---
   useEffect(() => {
@@ -215,6 +227,24 @@ export const Player = () => {
     if (controls.jump && (isGrounded || isVelocityGrounded) && !controls.crouch) {
       rigidBody.current.applyImpulse({ x: 0, y: PLAYER_JUMP_FORCE, z: 0 }, true);
       controls.jump = false;
+      audio.playJump();
+    }
+
+    // Footsteps
+    if ((isGrounded || isVelocityGrounded) && direction.length() > 0.1) {
+      const stepInterval = controls.sprint ? 300 : 500; // Faster steps when sprinting
+      const now = Date.now();
+      if (!lastStepTime.current) lastStepTime.current = 0;
+
+      if (now - lastStepTime.current > stepInterval) {
+        audio.playFootstep();
+        lastStepTime.current = now;
+      }
+    } else {
+      // Reset step timer when stopping so next step is immediate
+      if (lastStepTime.current && Date.now() - lastStepTime.current > 500) {
+        lastStepTime.current = 0;
+      }
     }
 
     // --- 2. Camera & Look ---
@@ -237,6 +267,8 @@ export const Player = () => {
     if (isAiming) {
       if (currentWeapon === WeaponType.RIFLE) targetFov = aimFovRifle;
       if (currentWeapon === WeaponType.SNIPER) targetFov = aimFovSniper;
+    } else if (controls.sprint && controls.forward && !controls.crouch) {
+      targetFov = baseFov + 10; // Sprint FOV effect
     }
 
     // Fix: Check if camera is PerspectiveCamera before accessing fov

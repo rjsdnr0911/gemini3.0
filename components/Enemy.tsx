@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { RigidBody, RapierRigidBody, CuboidCollider } from '@react-three/rapier';
@@ -6,6 +5,7 @@ import { Vector3, MeshStandardMaterial, Raycaster, MathUtils } from 'three';
 import { useGameStore } from '../store';
 import { GameState } from '../types';
 import { MAP_WIDTH, MAP_LENGTH } from '../constants';
+import { CharacterModel } from './CharacterModel';
 
 enum AIState {
     IDLE = 'IDLE',
@@ -25,10 +25,17 @@ const COVER_POINTS = [
     new Vector3(12, 1, 0),      // High Ground Base
 ];
 
+const STOP_DISTANCE = 15;
+const MOVE_SPEED = 5.5;
+
 export const Enemy = () => {
     const rigidBody = useRef<RapierRigidBody>(null);
     const materialRef = useRef<MeshStandardMaterial>(null);
-    const [hp, setHp] = useState(100);
+    const { playerPosition, incrementEnemyScore, incrementPlayerScore, showKillBanner, addKillFeed, gameState, health: playerHealth, setHealth: setPlayerHealth } = useGameStore();
+
+    const [health, setHealth] = useState(100);
+    const [isDead, setIsDead] = useState(false);
+    const [isMoving, setIsMoving] = useState(false);
     const [hitFlash, setHitFlash] = useState(0);
 
     // AI State
@@ -45,20 +52,25 @@ export const Enemy = () => {
     const stuckTimer = useRef(0);
     const lastPos = useRef(new Vector3());
 
-    const {
-        gameState,
-        incrementPlayerScore,
-        setHealth,
-        health: playerHealth,
-        incrementEnemyScore
-    } = useGameStore();
-
     const { scene, camera } = useThree();
     const raycaster = useMemo(() => new Raycaster(), []);
 
     // Respawn Logic
+    const respawnTimeout = useRef<NodeJS.Timeout | null>(null);
+    const isMounted = useRef(true);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+            if (respawnTimeout.current) clearTimeout(respawnTimeout.current);
+        };
+    }, []);
+
     const respawn = () => {
-        setHp(100);
+        if (!isMounted.current) return;
+
+        setHealth(100);
         setHitFlash(0);
         aiState.current = AIState.IDLE;
         isReloading.current = false;
@@ -72,12 +84,6 @@ export const Enemy = () => {
         }
     };
 
-    useEffect(() => {
-        if (gameState === GameState.MENU) {
-            respawn();
-        }
-    }, [gameState]);
-
     // Damage Handler
     useEffect(() => {
         const handleHit = (e: any) => {
@@ -90,7 +96,7 @@ export const Enemy = () => {
                 strafeDir.current *= -1;
             }
 
-            setHp(prev => {
+            setHealth(prev => {
                 const newHp = prev - damage;
                 if (newHp <= 0) {
                     incrementPlayerScore();
@@ -99,7 +105,8 @@ export const Enemy = () => {
                         rigidBody.current.setTranslation({ x: 0, y: -100, z: 0 }, true);
                         rigidBody.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
                     }
-                    setTimeout(respawn, 2000); // Respawn delay
+                    if (respawnTimeout.current) clearTimeout(respawnTimeout.current);
+                    respawnTimeout.current = setTimeout(respawn, 2000); // Respawn delay
                     return 0;
                 }
                 // Trigger retreat if low HP
@@ -111,12 +118,15 @@ export const Enemy = () => {
             });
         };
         window.addEventListener('ENEMY_HIT', handleHit);
-        return () => window.removeEventListener('ENEMY_HIT', handleHit);
+        return () => {
+            window.removeEventListener('ENEMY_HIT', handleHit);
+            if (respawnTimeout.current) clearTimeout(respawnTimeout.current);
+        };
     }, [incrementPlayerScore]);
 
 
     useFrame((state, delta) => {
-        if (!rigidBody.current || gameState !== GameState.PLAYING || hp <= 0) return;
+        if (!rigidBody.current || gameState !== GameState.PLAYING || health <= 0) return;
 
         const now = Date.now();
 
@@ -124,14 +134,8 @@ export const Enemy = () => {
         if (hitFlash > 0) {
             setHitFlash(prev => Math.max(0, prev - delta * 5));
         }
-        if (materialRef.current) {
-            const isAggro = aiState.current === AIState.CHASE || aiState.current === AIState.STRAFE;
-            const baseColor = hp < 30 ? "#ef4444" : (isAggro ? "#ef4444" : "#d946ef");
-
-            materialRef.current.color.set(hitFlash > 0 ? "#ffffff" : baseColor);
-            materialRef.current.emissive.set(hitFlash > 0 ? "#ffffff" : (isAggro ? "#7f1d1d" : "#86198f"));
-            materialRef.current.emissiveIntensity = hitFlash > 0 ? 2 : 0.5;
-        }
+        // Note: Material update logic removed as we are using CharacterModel now, 
+        // but we can pass hitFlash to CharacterModel if we want later.
 
         // --- 2. PERCEPTION ---
         const botPos = new Vector3().copy(rigidBody.current.translation() as Vector3);
@@ -140,7 +144,6 @@ export const Enemy = () => {
         const dirToPlayer = new Vector3().subVectors(playerPos, botPos).normalize();
 
         // Line of Sight Check
-        // Ensure we don't pass NaNs if bot overlaps player exactly
         if (dirToPlayer.lengthSq() < 0.001) {
             dirToPlayer.set(0, 0, 1);
         }
@@ -149,8 +152,6 @@ export const Enemy = () => {
         raycaster.far = 100;
         const intersects = raycaster.intersectObjects(scene.children, true);
 
-        // Check if first hit is player (approximated by distance) or obstacle
-        // We assume if we hit a wall closer than the player, we don't have LOS
         let hasLOS = true;
         for (const hit of intersects) {
             if (hit.object.name === 'WALL' || hit.object.name === 'FLOOR') {
@@ -162,19 +163,17 @@ export const Enemy = () => {
         }
 
         // --- 3. DECISION MAKING (State Machine) ---
-        // State Transitions
-        if (now - lastStateChange.current > 1000) { // Check every 1s approx for major state changes
-            if (hp < 30) {
+        if (now - lastStateChange.current > 1000) {
+            if (health < 30) {
                 aiState.current = AIState.RETREAT;
             } else if (distToPlayer < 15 && hasLOS) {
                 aiState.current = AIState.STRAFE;
             } else if (distToPlayer > 20) {
                 aiState.current = AIState.CHASE;
             } else if (!hasLOS) {
-                aiState.current = AIState.CHASE; // Hunt down
+                aiState.current = AIState.CHASE;
             }
 
-            // Randomly switch strafe direction
             if (aiState.current === AIState.STRAFE && Math.random() > 0.7) {
                 strafeDir.current *= -1;
             }
@@ -182,46 +181,33 @@ export const Enemy = () => {
 
         // --- 4. MOVEMENT EXECUTION ---
         const moveVec = new Vector3(0, 0, 0);
-        const speed = 5.5; // Slightly slower than player
 
         switch (aiState.current) {
             case AIState.CHASE:
-                moveVec.copy(dirToPlayer).multiplyScalar(speed);
+                moveVec.copy(dirToPlayer).multiplyScalar(MOVE_SPEED);
                 break;
-
             case AIState.STRAFE:
-                // Perpendicular vector for strafing
                 const strafe = new Vector3().crossVectors(dirToPlayer, new Vector3(0, 1, 0)).normalize();
-                moveVec.copy(strafe).multiplyScalar(speed * 0.8 * strafeDir.current);
-                // Add slight forward/backward bias to keep range
+                moveVec.copy(strafe).multiplyScalar(MOVE_SPEED * 0.8 * strafeDir.current);
                 if (distToPlayer > 15) moveVec.add(dirToPlayer.multiplyScalar(2));
                 else if (distToPlayer < 5) moveVec.sub(dirToPlayer.multiplyScalar(2));
                 break;
-
             case AIState.RETREAT:
-                // Run away from player towards nearest cover
-                // Simple: Run away
-                moveVec.copy(dirToPlayer).negate().multiplyScalar(speed * 1.1); // Panic run
-
-                // Find cover point
+                moveVec.copy(dirToPlayer).negate().multiplyScalar(MOVE_SPEED * 1.1);
                 let bestCover = COVER_POINTS[0];
                 let maxScore = -Infinity;
-
                 COVER_POINTS.forEach(p => {
                     const dToP = p.distanceTo(playerPos);
                     const dToBot = p.distanceTo(botPos);
-                    // Heuristic: Far from player, close to bot
                     const score = dToP - dToBot;
                     if (score > maxScore) {
                         maxScore = score;
                         bestCover = p;
                     }
                 });
-
                 const dirToCover = new Vector3().subVectors(bestCover, botPos).normalize();
-                moveVec.add(dirToCover.multiplyScalar(3)); // Blend runaway + cover seek
+                moveVec.add(dirToCover.multiplyScalar(3));
                 break;
-
             case AIState.IDLE:
             default:
                 moveVec.set(0, 0, 0);
@@ -232,7 +218,6 @@ export const Enemy = () => {
         if (botPos.distanceTo(lastPos.current) < 0.02 && moveVec.length() > 0) {
             stuckTimer.current += delta;
             if (stuckTimer.current > 0.5) {
-                // Jump or move random
                 rigidBody.current.applyImpulse({ x: 0, y: 5, z: 0 }, true);
                 moveVec.add(new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).multiplyScalar(10));
                 stuckTimer.current = 0;
@@ -245,12 +230,13 @@ export const Enemy = () => {
         // Apply movement
         rigidBody.current.setLinvel({ x: moveVec.x, y: rigidBody.current.linvel().y, z: moveVec.z }, true);
 
+        // Update isMoving state for animation
+        setIsMoving(moveVec.length() > 0.1);
 
         // --- 5. COMBAT (Shooting) ---
-        if (hasLOS && distToPlayer < 60 && hp > 0) {
-            // Burst fire logic
-            const burstDelay = 100; // ms between shots in burst
-            const burstCooldown = 1500; // ms between bursts
+        if (hasLOS && distToPlayer < 60 && health > 0) {
+            const burstDelay = 100;
+            const burstCooldown = 1500;
             const shotsPerBurst = 3;
 
             if (isReloading.current) {
@@ -259,58 +245,45 @@ export const Enemy = () => {
                     burstCount.current = 0;
                 }
             } else {
-                // Ready to shoot
                 if (now - lastShootTime.current > (burstCount.current === 0 ? burstCooldown : burstDelay)) {
-                    // Fire!
                     lastShootTime.current = now;
                     burstCount.current++;
 
-                    // Calculate accuracy (worse if moving, worse if far)
                     const spread = 0.05 + (distToPlayer * 0.001) + (aiState.current === AIState.STRAFE ? 0.05 : 0);
                     const accuracyCheck = Math.random();
 
-                    // Visual tracer/shot effect
-                    const startPos = botPos.clone().add(new Vector3(0, 0.5, 0)); // Approx weapon height
-                    // Offset to side slightly
+                    const startPos = botPos.clone().add(new Vector3(0, 0.5, 0));
                     const right = new Vector3().crossVectors(dirToPlayer, new Vector3(0, 1, 0)).normalize();
                     startPos.add(right.multiplyScalar(0.4));
 
                     let endPos = playerPos.clone();
                     if (accuracyCheck <= spread) {
-                        // Miss: Random offset around player
                         endPos.add(new Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2));
                     } else {
-                        // Hit!
-                        const dmg = 8 + Math.random() * 4; // 8-12 dmg per shot
-                        setHealth(Math.max(0, playerHealth - dmg));
+                        const dmg = 8 + Math.random() * 4;
+                        setPlayerHealth(Math.max(0, playerHealth - dmg));
                         if (playerHealth - dmg <= 0) {
                             incrementEnemyScore();
                         }
                     }
 
-                    // Dispatch Tracer
                     window.dispatchEvent(new CustomEvent('SHOOT', {
                         detail: {
                             start: startPos,
                             end: endPos,
-                            color: '#ef4444' // Red for enemy
+                            color: '#ef4444'
                         }
                     }));
 
                     if (burstCount.current >= shotsPerBurst) {
                         isReloading.current = true;
                         burstCount.current = 0;
-
-                        // Change movement after shooting
                         if (aiState.current === AIState.CHASE) aiState.current = AIState.STRAFE;
                     }
                 }
             }
         }
     });
-
-    // DO NOT UNMOUNT RIGIDBODY! Just hide mesh and move away.
-    // Unmounting causes Rapier memory access errors if updated in the same frame.
 
     return (
         <RigidBody
@@ -319,31 +292,28 @@ export const Enemy = () => {
             colliders={false}
             enabledRotations={[false, false, false]}
             type="dynamic"
-            friction={0} // Smooth movement
+            friction={0}
         >
             <CuboidCollider args={[0.7, 1.0, 0.7]} />
 
-            <group position={[0, 0, 0]} rotation={[0, Math.PI, 0]} visible={hp > 0}>
-                {/* Body */}
-                <mesh name="ENEMY_HITBOX" position={[0, 0, 0]}>
-                    <capsuleGeometry args={[0.7, 2, 8]} />
-                    <meshStandardMaterial ref={materialRef} color="#d946ef" />
-                </mesh>
-                {/* Head / Visor */}
-                <mesh position={[0, 0.6, 0.5]}>
-                    <boxGeometry args={[0.6, 0.25, 0.3]} />
-                    <meshStandardMaterial color={aiState.current === AIState.RETREAT ? "#facc15" : "#00ff00"} emissiveIntensity={2} toneMapped={false} />
-                </mesh>
-                {/* Weapon */}
-                <mesh position={[0.6, 0, 0.6]}>
-                    <boxGeometry args={[0.15, 0.2, 0.8]} />
-                    <meshStandardMaterial color="#cbd5e1" />
-                </mesh>
-                {/* Tactical Vest */}
-                <mesh position={[0, -0.2, 0.6]}>
-                    <boxGeometry args={[0.8, 0.8, 0.2]} />
-                    <meshStandardMaterial color="#475569" />
-                </mesh>
+            <group position={[0, 0, 0]} rotation={[0, Math.PI, 0]} visible={health > 0}>
+                {/* Visuals Container */}
+                <group position={[0, -0.9, 0]}>
+                    {/* Hitbox (Invisible) */}
+                    <mesh name="ENEMY_HITBOX" visible={false} position={[0, 0.9, 0]}>
+                        <capsuleGeometry args={[0.4, 1.8, 4, 8]} />
+                        <meshBasicMaterial color="red" wireframe />
+                    </mesh>
+
+                    {/* 3D Character Model */}
+                    <CharacterModel color="#ef4444" isMoving={isMoving} />
+
+                    {/* Weapon */}
+                    <mesh position={[0.3, 1.3, 0.4]}>
+                        <boxGeometry args={[0.1, 0.1, 0.6]} />
+                        <meshStandardMaterial color="#333" />
+                    </mesh>
+                </group>
             </group>
         </RigidBody>
     );

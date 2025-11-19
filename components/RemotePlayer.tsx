@@ -1,34 +1,32 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../store';
-import { Vector3, Quaternion } from 'three';
+import { Vector3 } from 'three';
 import { Text } from '@react-three/drei';
+import { CharacterModel } from './CharacterModel';
 
 export const RemotePlayer = () => {
     const remotePlayer = useGameStore(state => state.remotePlayer);
     const isMultiplayer = useGameStore(state => state.isMultiplayer);
 
     const groupRef = useRef<any>(null);
-    const bodyRef = useRef<any>(null);
-    const headRef = useRef<any>(null);
+    const [isMoving, setIsMoving] = useState(false);
+    const lastPos = useRef(new Vector3());
 
     useFrame((state, delta) => {
         if (!remotePlayer || !groupRef.current) return;
 
-        // Interpolate position for smoothness (simple lerp)
+        // Interpolate position
         const targetPos = new Vector3(remotePlayer.position.x, remotePlayer.position.y, remotePlayer.position.z);
-        groupRef.current.position.lerp(targetPos, 0.2); // 0.2 factor for smoothing
+        groupRef.current.position.lerp(targetPos, 0.2);
 
-        // Rotation (Y axis for body)
-        // We don't have body rotation in packet, only camera rotation.
-        // Let's use camera rotation Y for body facing.
-        // remotePlayer.rotation is Euler {x,y,z}
+        // Rotation
         groupRef.current.rotation.y = remotePlayer.rotation.y;
 
-        // Head/Camera pitch (X axis)
-        if (headRef.current) {
-            headRef.current.rotation.x = remotePlayer.rotation.x;
-        }
+        // Movement detection for animation
+        const dist = targetPos.distanceTo(lastPos.current);
+        setIsMoving(dist > 0.01);
+        lastPos.current.copy(targetPos);
     });
 
     if (!isMultiplayer || !remotePlayer) return null;
@@ -48,21 +46,16 @@ export const RemotePlayer = () => {
                 ENEMY
             </Text>
 
-            {/* Body Capsule Representation */}
-            <mesh ref={bodyRef} position={[0, 0.9, 0]} name="ENEMY_HITBOX">
+            {/* Hitbox (Invisible but present for raycasts) */}
+            <mesh position={[0, 0.9, 0]} name="ENEMY_HITBOX" visible={false}>
                 <capsuleGeometry args={[0.4, 1.8, 4, 8]} />
-                <meshStandardMaterial color="#ef4444" roughness={0.8} />
+                <meshBasicMaterial color="red" wireframe />
             </mesh>
 
-            {/* Head / Visor */}
-            <group ref={headRef} position={[0, 1.6, 0]}>
-                <mesh position={[0, 0, 0.2]}>
-                    <boxGeometry args={[0.3, 0.2, 0.2]} />
-                    <meshStandardMaterial color="#000000" emissive="#ef4444" emissiveIntensity={2} />
-                </mesh>
-            </group>
+            {/* 3D Character Model */}
+            <CharacterModel color="#ef4444" isMoving={isMoving} />
 
-            {/* Weapon (Simple Box for now) */}
+            {/* Weapon (Held in hand - simplified for now, attached to body group) */}
             <group position={[0.3, 1.3, 0.4]} rotation={[0, 0, 0]}>
                 <mesh>
                     <boxGeometry args={[0.1, 0.1, 0.6]} />

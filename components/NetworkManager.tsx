@@ -56,14 +56,6 @@ export const NetworkManager = () => {
         setConnectionStatus('CONNECTED');
         setPeerIds(peerRef.current?.id || '', conn.peer);
 
-        // Start Game if Host
-        if (isHost) {
-            setTimeout(() => {
-                conn.send({ type: 'START', timestamp: Date.now() });
-                setGameState(GameState.PLAYING);
-            }, 1000);
-        }
-
         conn.on('data', (data: any) => {
             handleData(data);
         });
@@ -77,7 +69,7 @@ export const NetworkManager = () => {
 
     const handleData = (packet: NetworkPacket) => {
         switch (packet.type) {
-            case 'UPDATE':
+            case 'PLAYER_UPDATE':
                 updateRemotePlayer(packet.payload);
                 break;
             case 'SHOOT':
@@ -93,6 +85,7 @@ export const NetworkManager = () => {
             case 'HIT':
                 // Received damage
                 const dmg = packet.payload.damage;
+                const hitWeapon = packet.payload.weapon;
                 const newHealth = Math.max(0, useGameStore.getState().health - dmg);
                 setHealth(newHealth);
 
@@ -100,18 +93,30 @@ export const NetworkManager = () => {
                 if (newHealth <= 0) {
                     connRef.current?.send({
                         type: 'KILL',
-                        timestamp: Date.now(),
-                        payload: { victim: peerRef.current?.id }
+                        payload: {
+                            victim: peerRef.current?.id,
+                            weapon: hitWeapon // Tell them what killed me
+                        }
                     });
                     setGameState(GameState.GAME_OVER);
+                    // Show feed for myself (I died)
+                    useGameStore.getState().addKillFeed('Enemy', 'Player', hitWeapon);
+                    useGameStore.getState().showKillBanner('ELIMINATED BY ENEMY');
                 }
                 break;
             case 'KILL':
                 // I killed the opponent
-                incrementPlayerScore();
+                const killWeapon = packet.payload.weapon || useGameStore.getState().currentWeapon;
+                incrementPlayerScore(killWeapon);
                 break;
             case 'START':
                 setGameState(GameState.PLAYING);
+                break;
+            case 'CHAT':
+                useGameStore.getState().addChatMessage('Opponent', packet.payload.text);
+                break;
+            case 'READY':
+                useGameStore.getState().setOpponentReady(packet.payload.isReady);
                 break;
         }
     };
@@ -157,8 +162,7 @@ export const NetworkManager = () => {
         const sendUpdate = (e: any) => {
             if (connRef.current?.open) {
                 connRef.current.send({
-                    type: 'UPDATE',
-                    timestamp: Date.now(),
+                    type: 'PLAYER_UPDATE',
                     payload: e.detail
                 });
             }
@@ -168,7 +172,6 @@ export const NetworkManager = () => {
             if (connRef.current?.open) {
                 connRef.current.send({
                     type: 'SHOOT',
-                    timestamp: Date.now(),
                     payload: e.detail
                 });
             }
@@ -180,20 +183,53 @@ export const NetworkManager = () => {
                 // Send damage packet
                 connRef.current.send({
                     type: 'HIT',
-                    timestamp: Date.now(),
-                    payload: { damage: e.detail.damage }
+                    payload: {
+                        damage: e.detail.damage,
+                        weapon: useGameStore.getState().currentWeapon
+                    }
                 });
+            }
+        };
+
+        const sendChat = (e: any) => {
+            if (connRef.current?.open) {
+                connRef.current.send({
+                    type: 'CHAT',
+                    payload: { text: e.detail.text }
+                });
+            }
+        };
+
+        const sendReady = (e: any) => {
+            if (connRef.current?.open) {
+                connRef.current.send({
+                    type: 'READY',
+                    payload: { isReady: e.detail.isReady }
+                });
+            }
+        };
+
+        const startGame = () => {
+            if (connRef.current?.open && isHost) {
+                connRef.current.send({ type: 'START', payload: {} });
+                setGameState(GameState.PLAYING);
             }
         };
 
         window.addEventListener('PLAYER_UPDATE', sendUpdate);
         window.addEventListener('SHOOT', sendShoot);
         window.addEventListener('ENEMY_HIT', sendHit); // Listen for hits on RemotePlayer
+        window.addEventListener('SEND_CHAT', sendChat);
+        window.addEventListener('SEND_READY', sendReady);
+        window.addEventListener('START_GAME', startGame);
 
         return () => {
             window.removeEventListener('PLAYER_UPDATE', sendUpdate);
             window.removeEventListener('SHOOT', sendShoot);
             window.removeEventListener('ENEMY_HIT', sendHit);
+            window.removeEventListener('SEND_CHAT', sendChat);
+            window.removeEventListener('SEND_READY', sendReady);
+            window.removeEventListener('START_GAME', startGame);
         };
     }, []);
 

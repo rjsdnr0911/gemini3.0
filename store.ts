@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameState, WeaponType, MatchStats, RemotePlayerState } from './types';
+import { GameState, WeaponType, MatchStats, RemotePlayerState, ChatMessage } from './types';
 import { WEAPONS } from './constants';
 
 interface GameStore {
@@ -17,11 +17,14 @@ interface GameStore {
   reloadWeapon: () => void;
   setReloading: (status: boolean) => void;
 
+  setGameState: (state: GameState) => void;
+  incrementScore: () => void;
+  incrementPlayerScore: (weapon?: WeaponType) => void;
+  incrementEnemyScore: () => void;
+
   // Score
   playerScore: number;
   enemyScore: number;
-  incrementPlayerScore: () => void;
-  incrementEnemyScore: () => void;
 
   // Stats for Gemini & UX
   stats: MatchStats;
@@ -45,11 +48,20 @@ interface GameStore {
   connectionStatus: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED';
   remotePlayer: RemotePlayerState | null;
 
+  // Chat & Lobby
+  chatMessages: ChatMessage[];
+  isReady: boolean;
+  isOpponentReady: boolean;
+
   // Actions
   setMultiplayer: (isMultiplayer: boolean, isHost: boolean) => void;
   setConnectionStatus: (status: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED') => void;
   setPeerIds: (myId: string, opponentId: string) => void;
   updateRemotePlayer: (state: RemotePlayerState) => void;
+
+  addChatMessage: (sender: string, text: string) => void;
+  setReady: (isReady: boolean) => void;
+  setOpponentReady: (isReady: boolean) => void;
 }
 
 const INITIAL_STATS: MatchStats = {
@@ -103,13 +115,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   playerScore: 0,
   enemyScore: 0,
-  incrementPlayerScore: () => {
-    set((state) => ({
-      playerScore: state.playerScore + 1,
-      stats: { ...state.stats, playerKills: state.stats.playerKills + 1 }
+  incrementPlayerScore: (weapon?: WeaponType) => {
+    const state = useGameStore.getState();
+    const killWeapon = weapon || state.currentWeapon;
+    state.addKillFeed('YOU', 'ENEMY', WEAPONS[killWeapon].name); // Use WEAPONS[killWeapon].name
+    state.showKillBanner(state.playerScore + 1); // Pass the new score for the banner
+    set((s) => ({
+      playerScore: s.playerScore + 1,
+      stats: { ...s.stats, playerKills: s.stats.playerKills + 1 }
     }));
-    get().addKillFeed('YOU', 'ENEMY', WEAPONS[get().currentWeapon].name);
-    get().showKillBanner(get().playerScore + 1);
   },
   incrementEnemyScore: () => {
     set((state) => ({
@@ -185,5 +199,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setMultiplayer: (isMultiplayer, isHost) => set({ isMultiplayer, isHost }),
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   setPeerIds: (myId, opponentId) => set({ myPeerId: myId, opponentPeerId: opponentId }),
-  updateRemotePlayer: (remoteState) => set({ remotePlayer: remoteState })
+  updateRemotePlayer: (remoteState) => set({ remotePlayer: remoteState }),
+
+  // Chat & Lobby Implementation
+  chatMessages: [],
+  isReady: false,
+  isOpponentReady: false,
+
+  addChatMessage: (sender, text) => set((state) => ({
+    chatMessages: [...state.chatMessages, { sender, text, timestamp: Date.now() }]
+  })),
+  setReady: (isReady) => set({ isReady }),
+  setOpponentReady: (isReady) => set({ isOpponentReady })
 }));

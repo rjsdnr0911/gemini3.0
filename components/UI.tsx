@@ -6,6 +6,7 @@ import { GameState } from '../types';
 import { Crosshair, Heart, Target, Trophy, Skull, RefreshCw, X, Move, Minimize2, Crosshair as AimIcon, RotateCw } from 'lucide-react';
 import { analyzeMatch } from '../services/geminiService';
 import { controls } from '../controls';
+import { ChatBox } from './ChatBox';
 
 export const UI = () => {
   const {
@@ -27,7 +28,9 @@ export const UI = () => {
     connectionStatus,
     isHost,
     killFeed,
-    killBanner
+    killBanner,
+    isReady,
+    isOpponentReady
   } = useGameStore();
 
   const [showMultiplayerMenu, setShowMultiplayerMenu] = useState(false);
@@ -225,6 +228,68 @@ export const UI = () => {
                 <div className="mt-4 text-cyan-400 animate-pulse">
                   {connectionStatus === 'CONNECTING' ? 'Waiting for opponent...' : connectionStatus}
                 </div>
+
+                {connectionStatus === 'CONNECTED' && (
+                  <div className="mt-6">
+                    <div className="flex justify-center gap-8 mb-4">
+                      <div className={`text-xl font-bold ${useGameStore.getState().isReady ? 'text-green-500' : 'text-gray-500'}`}>
+                        YOU: {useGameStore.getState().isReady ? 'READY' : 'NOT READY'}
+                      </div>
+                      <div className={`text-xl font-bold ${useGameStore.getState().isOpponentReady ? 'text-green-500' : 'text-gray-500'}`}>
+                        OPPONENT: {useGameStore.getState().isOpponentReady ? 'READY' : 'NOT READY'}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        const newReady = !useGameStore.getState().isReady;
+                        useGameStore.getState().setReady(newReady);
+                        window.dispatchEvent(new CustomEvent('SEND_READY', { detail: { isReady: newReady } }));
+
+                        // Host starts game if both ready
+                        if (newReady && useGameStore.getState().isOpponentReady) {
+                          setTimeout(() => {
+                            // Send START packet
+                            // NetworkManager handles auto-start on host side if we trigger it?
+                            // Actually NetworkManager has a START packet handler.
+                            // But we need to trigger it.
+                            // Let's just set GameState to PLAYING and send START.
+                            // But NetworkManager logic for START was inside handleConnection timeout.
+                            // We should move that logic here.
+                            // For now, let's just rely on manual start or auto start.
+                            // Let's make a "START GAME" button appear if both ready.
+                          }, 500);
+                        }
+                      }}
+                      className={`px-8 py-3 rounded font-bold text-xl ${useGameStore.getState().isReady ? 'bg-green-600' : 'bg-gray-600'}`}
+                    >
+                      {useGameStore.getState().isReady ? 'READY!' : 'CLICK TO READY'}
+                    </button>
+
+                    {useGameStore.getState().isReady && useGameStore.getState().isOpponentReady && (
+                      <button
+                        onClick={() => {
+                          // Trigger Start
+                          // We need a way to tell NetworkManager to send START.
+                          // Let's use a custom event? Or just set state and let NetworkManager sync?
+                          // NetworkManager sends START on connection in previous code. We should change that.
+                          // Let's assume NetworkManager will be updated to listen for a START_GAME event or similar.
+                          // For now, we can just set local state and maybe NetworkManager syncs it?
+                          // No, we need to send a packet.
+                          // Let's add a hacky event for now or update NetworkManager later.
+                          // Wait, NetworkManager has `handleConnection` which sends START after 1s.
+                          // We should disable that auto-start in NetworkManager if we want this Lobby to work.
+                          // I will update NetworkManager to remove auto-start.
+                          // And here we dispatch a START_GAME event.
+                          window.dispatchEvent(new CustomEvent('START_GAME'));
+                        }}
+                        className="block mx-auto mt-4 px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded animate-bounce"
+                      >
+                        LAUNCH MISSION
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -245,6 +310,36 @@ export const UI = () => {
                 >
                   {connectionStatus === 'CONNECTED' ? 'CONNECTED!' : 'CONNECT & JOIN'}
                 </button>
+
+                {connectionStatus === 'CONNECTED' && (
+                  <div className="mt-6 text-center">
+                    <div className="flex justify-center gap-8 mb-4">
+                      <div className={`text-xl font-bold ${useGameStore.getState().isReady ? 'text-green-500' : 'text-gray-500'}`}>
+                        YOU: {useGameStore.getState().isReady ? 'READY' : 'NOT READY'}
+                      </div>
+                      <div className={`text-xl font-bold ${useGameStore.getState().isOpponentReady ? 'text-green-500' : 'text-gray-500'}`}>
+                        HOST: {useGameStore.getState().isOpponentReady ? 'READY' : 'NOT READY'}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        const newReady = !useGameStore.getState().isReady;
+                        useGameStore.getState().setReady(newReady);
+                        window.dispatchEvent(new CustomEvent('SEND_READY', { detail: { isReady: newReady } }));
+                      }}
+                      className={`px-8 py-3 rounded font-bold text-xl ${useGameStore.getState().isReady ? 'bg-green-600' : 'bg-gray-600'}`}
+                    >
+                      {useGameStore.getState().isReady ? 'READY!' : 'CLICK TO READY'}
+                    </button>
+
+                    {useGameStore.getState().isReady && useGameStore.getState().isOpponentReady && (
+                      <div className="mt-4 text-yellow-400 animate-pulse font-bold">
+                        WAITING FOR HOST TO START...
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -298,6 +393,7 @@ export const UI = () => {
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10">
+      <ChatBox />
       {/* --- SNIPER SCOPE OVERLAY --- */}
       {scopeVisible && currentWeapon === 'SNIPER' && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/10">
@@ -397,14 +493,21 @@ export const UI = () => {
 
       {/* --- KILL FEED --- */}
       <div className="absolute top-4 right-4 flex flex-col gap-2 items-end pointer-events-none">
-        {killFeed.map((feed) => (
-          <div key={feed.id} className="bg-black/60 text-white px-3 py-1 rounded border-r-2 border-red-500 flex items-center gap-2 text-sm animate-in slide-in-from-right fade-in duration-300">
-            <span className={feed.killer === 'YOU' ? 'text-cyan-400 font-bold' : 'text-red-400'}>{feed.killer}</span>
-            <Target size={14} className="text-gray-400" />
-            <span className="text-xs text-gray-500">[{feed.weapon}]</span>
-            <span className={feed.victim === 'YOU' ? 'text-cyan-400 font-bold' : 'text-red-400'}>{feed.victim}</span>
-          </div>
-        ))}
+        {killFeed.map((feed) => {
+          let WeaponIcon = Target;
+          if (feed.weapon === 'RIFLE') WeaponIcon = Crosshair;
+          if (feed.weapon === 'SNIPER') WeaponIcon = AimIcon;
+          if (feed.weapon === 'PISTOL') WeaponIcon = Move; // Placeholder
+          if (feed.weapon === 'KNIFE') WeaponIcon = X;
+
+          return (
+            <div key={feed.id} className="bg-black/60 text-white px-3 py-1 rounded border-r-2 border-red-500 flex items-center gap-2 text-sm animate-in slide-in-from-right fade-in duration-300">
+              <span className={feed.killer === 'Player' || feed.killer === 'YOU' ? 'text-cyan-400 font-bold' : 'text-red-400'}>{feed.killer}</span>
+              <WeaponIcon size={14} className="text-gray-400" />
+              <span className={feed.victim === 'Player' || feed.victim === 'YOU' ? 'text-cyan-400 font-bold' : 'text-red-400'}>{feed.victim}</span>
+            </div>
+          );
+        })}
       </div>
 
       {/* --- KILL BANNER (VALORANT STYLE) --- */}

@@ -36,8 +36,7 @@ export interface MatchStats {
 }
 
 export interface NetworkPacket {
-  type: 'UPDATE' | 'SHOOT' | 'HIT' | 'KILL' | 'JOIN' | 'START';
-  timestamp: number;
+  type: 'PLAYER_UPDATE' | 'SHOOT' | 'HIT' | 'KILL' | 'CHAT' | 'READY';
   payload: any;
 }
 
@@ -45,7 +44,13 @@ export interface RemotePlayerState {
   position: { x: number, y: number, z: number };
   rotation: { x: number, y: number, z: number };
   velocity: { x: number, y: number, z: number };
-  animState: 'IDLE' | 'RUN' | 'JUMP' | 'CROUCH';
+  animState: string;
   currentWeapon: WeaponType;
   isFiring: boolean;
+}
+
+export interface ChatMessage {
+  sender: string; // 'Me' or 'Opponent' or 'System'
+  text: string;
+  timestamp: number;
 }
