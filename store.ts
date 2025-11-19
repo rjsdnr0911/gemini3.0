@@ -1,6 +1,5 @@
-
 import { create } from 'zustand';
-import { GameState, WeaponType, MatchStats, WeaponStats } from './types';
+import { GameState, WeaponType, MatchStats, RemotePlayerState } from './types';
 import { WEAPONS } from './constants';
 
 interface GameStore {
@@ -37,6 +36,20 @@ interface GameStore {
   showKillBanner: (count: number) => void;
 
   analysisResult: string;
+
+  // Multiplayer State
+  isMultiplayer: boolean;
+  isHost: boolean;
+  myPeerId: string | null;
+  opponentPeerId: string | null;
+  connectionStatus: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED';
+  remotePlayer: RemotePlayerState | null;
+
+  // Actions
+  setMultiplayer: (isMultiplayer: boolean, isHost: boolean) => void;
+  setConnectionStatus: (status: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED') => void;
+  setPeerIds: (myId: string, opponentId: string) => void;
+  updateRemotePlayer: (state: RemotePlayerState) => void;
 }
 
 const INITIAL_STATS: MatchStats = {
@@ -80,7 +93,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ currentWeapon: weapon });
   },
   decrementAmmo: () => set((state) => ({
-    ammo: { ...state.ammo, [state.currentWeapon]: Math.max(0, state.ammo[state.currentWeapon] - 1) }
+    ammo: { ...state.ammo, [state.currentWeapon]: Math.max(0, state.ammo[state.currentWeapon] - 1) },
+    stats: { ...state.stats, shotsFired: state.stats.shotsFired + 1 } // Added shotsFired increment here
   })),
   reloadWeapon: () => set((state) => ({
     ammo: { ...state.ammo, [state.currentWeapon]: WEAPONS[state.currentWeapon].maxAmmo }
@@ -95,9 +109,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       stats: { ...state.stats, playerKills: state.stats.playerKills + 1 }
     }));
     get().addKillFeed('YOU', 'ENEMY', WEAPONS[get().currentWeapon].name);
-    get().showKillBanner(get().playerScore + 1); // Current score is updated in next render cycle, but here we use +1 for immediate feedback logic or just use score. Actually state update is async in React but sync in Zustand actions usually. 
-    // Wait, Zustand set is synchronous. So reading state.playerScore inside the updater is correct.
-    // Let's just pass the new score.
+    get().showKillBanner(get().playerScore + 1);
   },
   incrementEnemyScore: () => {
     set((state) => ({
@@ -113,7 +125,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     lastHitTime: hit ? Date.now() : state.lastHitTime,
     stats: {
       ...state.stats,
-      shotsFired: state.stats.shotsFired + 1,
       shotsHit: hit ? state.stats.shotsHit + 1 : state.stats.shotsHit,
       winningWeapon: WEAPONS[state.currentWeapon].name
     }
@@ -132,7 +143,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     },
     isReloading: false,
     stats: INITIAL_STATS,
-    analysisResult: ''
+    analysisResult: '',
+    killFeed: [], // Reset kill feed
+    killBanner: null, // Reset kill banner
+
+    // Reset Multiplayer State
+    isMultiplayer: false,
+    isHost: false,
+    myPeerId: null,
+    opponentPeerId: null,
+    connectionStatus: 'DISCONNECTED',
+    remotePlayer: null,
   }),
 
   killFeed: [],
@@ -150,5 +171,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   analysisResult: '',
-  setAnalysis: (text) => set({ analysisResult: text })
+  setAnalysis: (text) => set({ analysisResult: text }),
+
+  // Multiplayer Initial State
+  isMultiplayer: false,
+  isHost: false,
+  myPeerId: null,
+  opponentPeerId: null,
+  connectionStatus: 'DISCONNECTED',
+  remotePlayer: null,
+
+  // Multiplayer Actions
+  setMultiplayer: (isMultiplayer, isHost) => set({ isMultiplayer, isHost }),
+  setConnectionStatus: (status) => set({ connectionStatus: status }),
+  setPeerIds: (myId, opponentId) => set({ myPeerId: myId, opponentPeerId: opponentId }),
+  updateRemotePlayer: (remoteState) => set({ remotePlayer: remoteState })
 }));

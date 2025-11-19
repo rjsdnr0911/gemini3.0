@@ -34,3 +34,18 @@ export interface MatchStats {
   endTime: number;
   winningWeapon: string;
 }
+
+export interface NetworkPacket {
+  type: 'UPDATE' | 'SHOOT' | 'HIT' | 'KILL' | 'JOIN' | 'START';
+  timestamp: number;
+  payload: any;
+}
+
+export interface RemotePlayerState {
+  position: { x: number, y: number, z: number };
+  rotation: { x: number, y: number, z: number };
+  velocity: { x: number, y: number, z: number };
+  animState: 'IDLE' | 'RUN' | 'JUMP' | 'CROUCH';
+  currentWeapon: WeaponType;
+  isFiring: boolean;
+}

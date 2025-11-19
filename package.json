@@ -16,6 +16,7 @@
     "@react-three/fiber": "^9.4.0",
     "@react-three/rapier": "^2.2.0",
     "lucide-react": "^0.554.0",
+    "peerjs": "^1.5.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "three": "^0.181.1",

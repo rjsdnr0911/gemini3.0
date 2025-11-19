@@ -19,8 +19,19 @@ export const UI = () => {
     setAnalysis,
     analysisResult,
     resetGame,
-    lastHitTime
+    lastHitTime,
+    // Multiplayer
+    isMultiplayer,
+    setMultiplayer,
+    myPeerId,
+    connectionStatus,
+    isHost,
+    killFeed,
+    killBanner
   } = useGameStore();
+
+  const [showMultiplayerMenu, setShowMultiplayerMenu] = useState(false);
+  const [targetPeerId, setTargetPeerId] = useState('');
 
   const [showHitMarker, setShowHitMarker] = useState(false);
   const weapon = WEAPONS[currentWeapon];
@@ -156,31 +167,98 @@ export const UI = () => {
 
   // FIX: Extract these selections to the top level.
 
-  const killFeed = useGameStore(state => state.killFeed);
-  const killBanner = useGameStore(state => state.killBanner);
 
-  if (gameState === 'MENU') {
+  if (gameState === GameState.MENU) {
     return (
-      <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 text-white">
-        <h1 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-600 mb-4 tracking-widest font-mono">
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white z-50">
+        <h1 className="text-6xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 italic">
           NEON FRAG
         </h1>
-        <p className="mb-8 text-gray-400">1v1 TACTICAL SIMULATION</p>
-        <div className="bg-gray-900 p-8 border border-gray-700 rounded-lg max-w-md text-center">
-          <h3 className="text-xl font-bold mb-4 text-cyan-400">MISSION BRIEFING</h3>
-          <ul className="text-left text-sm space-y-2 mb-8 text-gray-300">
-            <li>• ELIMINATE HOSTILE AI UNIT</li>
-            <li>• FIRST TO {WIN_SCORE} KILLS WINS</li>
-            <li>• [1] RIFLE [2] PISTOL [3] KNIFE [0] SNIPER</li>
-            <li>• PC: [WASD] MOVE [SPACE] JUMP [C] CROUCH [SHIFT] SPRINT</li>
-            <li>• MOBILE: USE ON-SCREEN CONTROLS</li>
-          </ul>
-          <button
-            onClick={() => useGameStore.getState().setGameState(GameState.PLAYING)}
-            className="w-full py-3 px-6 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded transition-all border border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.5)]"
-          >
-            DEPLOY TO ARENA
-          </button>
+
+        {!showMultiplayerMenu ? (
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={() => {
+                setMultiplayer(false, false);
+                useGameStore.getState().setGameState(GameState.PLAYING);
+              }}
+              className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 rounded text-2xl font-bold transition-all clip-path-slant"
+            >
+              DEPLOY TO ARENA (SINGLE)
+            </button>
+            <button
+              onClick={() => {
+                setMultiplayer(true, true); // Default to host init
+                setShowMultiplayerMenu(true);
+              }}
+              className="px-8 py-4 bg-purple-600 hover:bg-purple-500 rounded text-2xl font-bold transition-all clip-path-slant"
+            >
+              ONLINE MULTIPLAYER
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 bg-gray-900 p-8 rounded-lg border border-purple-500">
+            <h2 className="text-2xl font-bold mb-4 text-center">ONLINE LOBBY</h2>
+
+            <div className="flex gap-4 mb-4">
+              <button
+                onClick={() => setMultiplayer(true, true)}
+                className={`flex-1 py-2 rounded ${useGameStore.getState().isHost ? 'bg-purple-600' : 'bg-gray-700'}`}
+              >
+                HOST GAME
+              </button>
+              <button
+                onClick={() => setMultiplayer(true, false)}
+                className={`flex-1 py-2 rounded ${!useGameStore.getState().isHost ? 'bg-cyan-600' : 'bg-gray-700'}`}
+              >
+                JOIN GAME
+              </button>
+            </div>
+
+            {useGameStore.getState().isHost ? (
+              <div className="text-center">
+                <p className="text-gray-400 mb-2">Your Room ID:</p>
+                <div className="bg-black p-4 rounded text-xl font-mono select-all cursor-pointer text-yellow-400" onClick={(e) => navigator.clipboard.writeText(e.currentTarget.innerText)}>
+                  {myPeerId || 'Generating...'}
+                </div>
+                <p className="text-sm text-gray-500 mt-2">Share this ID with your friend</p>
+                <div className="mt-4 text-cyan-400 animate-pulse">
+                  {connectionStatus === 'CONNECTING' ? 'Waiting for opponent...' : connectionStatus}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-gray-400">Enter Host ID:</p>
+                <input
+                  type="text"
+                  value={targetPeerId}
+                  onChange={(e) => setTargetPeerId(e.target.value)}
+                  className="bg-black p-3 rounded text-white border border-gray-600 focus:border-cyan-500 outline-none"
+                  placeholder="Paste Room ID here"
+                />
+                <button
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('CONNECT_PEER', { detail: { targetId: targetPeerId } }));
+                  }}
+                  disabled={!targetPeerId || connectionStatus === 'CONNECTED'}
+                  className="mt-2 py-3 bg-cyan-600 hover:bg-cyan-500 rounded font-bold disabled:opacity-50"
+                >
+                  {connectionStatus === 'CONNECTED' ? 'CONNECTED!' : 'CONNECT & JOIN'}
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowMultiplayerMenu(false)}
+              className="mt-4 text-gray-400 hover:text-white underline"
+            >
+              Back to Menu
+            </button>
+          </div>
+        )}
+
+        <div className="mt-12 text-gray-400 text-sm">
+          WASD to Move • SPACE to Jump • CLICK to Shoot • R to Reload
         </div>
       </div>
     );

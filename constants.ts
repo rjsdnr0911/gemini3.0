@@ -8,7 +8,7 @@ export const WIN_SCORE = 3;
 export const PLAYER_SPEED = 6;
 export const PLAYER_SPRINT_SPEED = 10;
 export const PLAYER_CROUCH_SPEED = 3;
-export const PLAYER_JUMP_FORCE = 5;
+export const PLAYER_JUMP_FORCE = 7;
 
 export const PLAYER_HEIGHT = 1.6;
 export const PLAYER_CROUCH_HEIGHT = 0.9;

@@ -19,6 +19,6 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       }
     },
-    base: '/gemini3.0/', // Base URL for GitHub Pages
+    base: mode === 'production' ? '/gemini3.0/' : '/', // Base URL for GitHub Pages (only in production)
   };
 });
