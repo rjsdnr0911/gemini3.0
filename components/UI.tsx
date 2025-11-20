@@ -185,7 +185,7 @@ export const UI = () => {
         <div
           className="absolute inset-0 z-[-1] bg-cover bg-center"
           style={{
-            backgroundImage: 'url(/main_menu_bg.png)',
+            backgroundImage: `url(${import.meta.env.BASE_URL}main_menu_bg.png)`,
             filter: 'brightness(0.4) blur(2px)'
           }}
         />
