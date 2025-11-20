@@ -237,6 +237,29 @@ class AudioService {
     noise.connect(gain);
     gain.connect(this.masterGain);
     noise.start();
+    noise.start();
+  }
+
+  playHeadshot() {
+    if (!this.ctx || !this.masterGain) return;
+    this.ensureContext();
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    // High pitched "Ding"
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(2000, this.ctx.currentTime + 0.1);
+
+    gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.5);
   }
 }
 

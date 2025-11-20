@@ -19,7 +19,7 @@ const Box = ({ color, ...props }: any) => (
 export const Map = () => {
   return (
     <group>
-      {/* Floor - Lighter color for contrast */}
+      {/* Floor */}
       <RigidBody type="fixed" friction={2}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} name="FLOOR">
           <planeGeometry args={[MAP_WIDTH + 20, MAP_LENGTH + 20]} />
@@ -35,55 +35,67 @@ export const Map = () => {
         </mesh>
       </RigidBody>
 
-      {/* Outer Walls - Lighter Grey */}
+      {/* Outer Walls */}
       <Box position={[MAP_WIDTH / 2, 5, 0]} args={[1, 10, MAP_LENGTH]} color="#94a3b8" />
       <Box position={[-MAP_WIDTH / 2, 5, 0]} args={[1, 10, MAP_LENGTH]} color="#94a3b8" />
       <Box position={[0, 5, MAP_LENGTH / 2]} args={[MAP_WIDTH, 10, 1]} color="#94a3b8" />
       <Box position={[0, 5, -MAP_LENGTH / 2]} args={[MAP_WIDTH, 10, 1]} color="#94a3b8" />
 
-      {/* Obstacles / Cover - Lighter tones */}
-      {/* Center Lane Cover */}
-      <Box position={[0, 1.5, 0]} args={[4, 3, 4]} color="#cbd5e1" />
+      {/* --- CENTRAL ARENA --- */}
+      {/* Central Pillar - LoS Blocker */}
+      <Box position={[0, 3, 0]} args={[4, 6, 4]} color="#cbd5e1" />
 
-      {/* Side Lane Covers */}
-      <Box position={[8, 1.5, 10]} args={[2, 3, 6]} color="#475569" />
-      <Box position={[-8, 1.5, -10]} args={[2, 3, 6]} color="#475569" />
+      {/* Low Cover around Center */}
+      <Box position={[0, 1, 6]} args={[6, 2, 1]} color="#64748b" />
+      <Box position={[0, 1, -6]} args={[6, 2, 1]} color="#64748b" />
 
-      <Box position={[10, 1, -20]} args={[3, 2, 3]} color="#64748b" />
-      <Box position={[-10, 1, 20]} args={[3, 2, 3]} color="#64748b" />
-
-      {/* High Ground / Ramps */}
-      {/* Platform */}
-      <RigidBody type="fixed" position={[-12, 3, 0]} rotation={[0, 0, 0]}>
+      {/* --- LEFT WING (High Ground) --- */}
+      <RigidBody type="fixed" position={[-12, 3, 0]}>
         <mesh name="FLOOR">
           <boxGeometry args={[6, 0.5, 14]} />
           <meshStandardMaterial color="#475569" />
         </mesh>
-        {/* Neon Edge */}
         <mesh position={[3, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
           <planeGeometry args={[0.5, 14]} />
           <meshBasicMaterial color="#0ea5e9" side={2} />
         </mesh>
       </RigidBody>
-
-      {/* Ramp 1 (Front) */}
+      {/* Ramps Left */}
       <RigidBody type="fixed" position={[-12, 1.5, 9]} rotation={[0.4, 0, 0]}>
-        <mesh name="FLOOR">
-          <boxGeometry args={[4, 0.2, 6]} />
-          <meshStandardMaterial color="#64748b" />
-        </mesh>
+        <mesh name="FLOOR"><boxGeometry args={[4, 0.2, 6]} /><meshStandardMaterial color="#64748b" /></mesh>
       </RigidBody>
-
-      {/* Ramp 2 (Back) */}
       <RigidBody type="fixed" position={[-12, 1.5, -9]} rotation={[-0.4, 0, 0]}>
+        <mesh name="FLOOR"><boxGeometry args={[4, 0.2, 6]} /><meshStandardMaterial color="#64748b" /></mesh>
+      </RigidBody>
+      {/* Cover Left */}
+      <Box position={[-12, 4, 0]} args={[4, 2, 1]} color="#94a3b8" />
+
+
+      {/* --- RIGHT WING (Mirrored High Ground) --- */}
+      <RigidBody type="fixed" position={[12, 3, 0]}>
         <mesh name="FLOOR">
-          <boxGeometry args={[4, 0.2, 6]} />
-          <meshStandardMaterial color="#64748b" />
+          <boxGeometry args={[6, 0.5, 14]} />
+          <meshStandardMaterial color="#475569" />
+        </mesh>
+        <mesh position={[-3, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <planeGeometry args={[0.5, 14]} />
+          <meshBasicMaterial color="#0ea5e9" side={2} />
         </mesh>
       </RigidBody>
+      {/* Ramps Right */}
+      <RigidBody type="fixed" position={[12, 1.5, 9]} rotation={[0.4, 0, 0]}>
+        <mesh name="FLOOR"><boxGeometry args={[4, 0.2, 6]} /><meshStandardMaterial color="#64748b" /></mesh>
+      </RigidBody>
+      <RigidBody type="fixed" position={[12, 1.5, -9]} rotation={[-0.4, 0, 0]}>
+        <mesh name="FLOOR"><boxGeometry args={[4, 0.2, 6]} /><meshStandardMaterial color="#64748b" /></mesh>
+      </RigidBody>
+      {/* Cover Right */}
+      <Box position={[12, 4, 0]} args={[4, 2, 1]} color="#94a3b8" />
 
-      {/* Cover on High Ground */}
-      <Box position={[-12, 4, 0]} args={[4, 2, 1]} color="#94a3b8" />
+      {/* --- SPAWN PROTECTION / COVER --- */}
+      <Box position={[10, 1.5, 20]} args={[3, 3, 3]} color="#475569" />
+      <Box position={[-10, 1.5, -20]} args={[3, 3, 3]} color="#475569" />
+
     </group>
   );
 };

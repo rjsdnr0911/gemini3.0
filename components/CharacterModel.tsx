@@ -1,6 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group, Vector3, MathUtils } from 'three';
+import { Outlines } from '@react-three/drei';
 
 interface CharacterModelProps {
     color?: string;
@@ -20,6 +21,8 @@ export const CharacterModel = ({ color = '#06b6d4', isMoving = false, animationS
     const bodyColor = color;
     const jointColor = '#111';
     const glowColor = color;
+    const outlineColor = "#ffffff"; // White outline for high visibility
+    const outlineThickness = 0.05;
 
     useFrame((state) => {
         if (!group.current) return;
@@ -56,6 +59,7 @@ export const CharacterModel = ({ color = '#06b6d4', isMoving = false, animationS
             <mesh position={[0, 1.1, 0]} castShadow>
                 <boxGeometry args={[0.5, 0.6, 0.3]} />
                 <meshStandardMaterial color={bodyColor} roughness={0.3} metalness={0.8} />
+                <Outlines thickness={outlineThickness} color={outlineColor} />
             </mesh>
             {/* Chest Plate (Glow) */}
             <mesh position={[0, 1.2, 0.16]}>
@@ -68,6 +72,7 @@ export const CharacterModel = ({ color = '#06b6d4', isMoving = false, animationS
                 <mesh castShadow>
                     <boxGeometry args={[0.3, 0.35, 0.35]} />
                     <meshStandardMaterial color={bodyColor} roughness={0.3} metalness={0.8} />
+                    <Outlines thickness={outlineThickness} color={outlineColor} />
                 </mesh>
                 {/* Visor */}
                 <mesh position={[0, 0.05, 0.18]}>
@@ -81,6 +86,7 @@ export const CharacterModel = ({ color = '#06b6d4', isMoving = false, animationS
                 <mesh position={[0, -0.3, 0]} castShadow>
                     <boxGeometry args={[0.15, 0.7, 0.15]} />
                     <meshStandardMaterial color={jointColor} />
+                    <Outlines thickness={outlineThickness} color={outlineColor} />
                 </mesh>
                 <mesh position={[0, -0.3, 0]}>
                     <boxGeometry args={[0.16, 0.3, 0.16]} />
@@ -93,6 +99,7 @@ export const CharacterModel = ({ color = '#06b6d4', isMoving = false, animationS
                 <mesh position={[0, -0.3, 0]} castShadow>
                     <boxGeometry args={[0.15, 0.7, 0.15]} />
                     <meshStandardMaterial color={jointColor} />
+                    <Outlines thickness={outlineThickness} color={outlineColor} />
                 </mesh>
                 <mesh position={[0, -0.3, 0]}>
                     <boxGeometry args={[0.16, 0.3, 0.16]} />
@@ -105,6 +112,7 @@ export const CharacterModel = ({ color = '#06b6d4', isMoving = false, animationS
                 <mesh position={[0, -0.4, 0]} castShadow>
                     <boxGeometry args={[0.18, 0.8, 0.18]} />
                     <meshStandardMaterial color={jointColor} />
+                    <Outlines thickness={outlineThickness} color={outlineColor} />
                 </mesh>
                 <mesh position={[0, -0.6, 0]} castShadow>
                     <boxGeometry args={[0.2, 0.4, 0.2]} />
@@ -117,6 +125,7 @@ export const CharacterModel = ({ color = '#06b6d4', isMoving = false, animationS
                 <mesh position={[0, -0.4, 0]} castShadow>
                     <boxGeometry args={[0.18, 0.8, 0.18]} />
                     <meshStandardMaterial color={jointColor} />
+                    <Outlines thickness={outlineThickness} color={outlineColor} />
                 </mesh>
                 <mesh position={[0, -0.6, 0]} castShadow>
                     <boxGeometry args={[0.2, 0.4, 0.2]} />

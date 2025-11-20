@@ -358,10 +358,18 @@ export const Player = () => {
         }
       }));
 
-      if (hit.object.name === 'ENEMY_HITBOX' && hit.distance <= range) {
+      if ((hit.object.name === 'ENEMY_HITBOX' || hit.object.name === 'HEAD_HITBOX') && hit.distance <= range) {
         hitEnemy = true;
-        audio.playHit();
-        window.dispatchEvent(new CustomEvent('ENEMY_HIT', { detail: { damage } }));
+        const isHeadshot = hit.object.name === 'HEAD_HITBOX';
+        const finalDamage = isHeadshot ? damage * 2 : damage;
+
+        if (isHeadshot) {
+          audio.playHeadshot(); // We will implement this next
+        } else {
+          audio.playHit();
+        }
+
+        window.dispatchEvent(new CustomEvent('ENEMY_HIT', { detail: { damage: finalDamage, isHeadshot } }));
         break;
       }
 
@@ -388,11 +396,17 @@ export const Player = () => {
     recordShot(hitEnemy);
   };
 
+  // Determine Spawn Point based on Host/Client
+  const isHost = useGameStore(state => state.isHost);
+  const spawnPos = isHost ? [0, 5, 35] : [0, 5, -35]; // Opposite ends
+  const spawnRot = isHost ? [0, Math.PI, 0] : [0, 0, 0]; // Face each other
+
   return (
     <group>
       <RigidBody
         ref={rigidBody}
-        position={[0, 5, 35]}
+        position={spawnPos as [number, number, number]}
+        rotation={spawnRot as [number, number, number]} // Initial rotation
         colliders={false}
         enabledRotations={[false, false, false]}
         mass={1}

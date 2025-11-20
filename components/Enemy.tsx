@@ -305,6 +305,12 @@ export const Enemy = () => {
                         <meshBasicMaterial color="red" wireframe />
                     </mesh>
 
+                    {/* Head Hitbox (Invisible) */}
+                    <mesh name="HEAD_HITBOX" visible={false} position={[0, 1.6, 0]}>
+                        <boxGeometry args={[0.35, 0.4, 0.35]} />
+                        <meshBasicMaterial color="yellow" wireframe />
+                    </mesh>
+
                     {/* 3D Character Model */}
                     <CharacterModel color="#ef4444" isMoving={isMoving} />
 

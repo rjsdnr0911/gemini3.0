@@ -52,9 +52,30 @@ export const NetworkManager = () => {
     }, [isMultiplayer, isHost]);
 
     const handleConnection = (conn: DataConnection) => {
-        connRef.current = conn;
-        setConnectionStatus('CONNECTED');
-        setPeerIds(peerRef.current?.id || '', conn.peer);
+        const setupConnection = () => {
+            connRef.current = conn;
+            setConnectionStatus('CONNECTED');
+            setPeerIds(peerRef.current?.id || '', conn.peer);
+
+            // Send initial Ready status
+            console.log('Connection established. Sending initial READY:', useGameStore.getState().isReady);
+            conn.send({
+                type: 'READY',
+                payload: { isReady: useGameStore.getState().isReady }
+            });
+
+            // Start Heartbeat
+            conn.send({ type: 'PING', payload: { time: Date.now() } });
+        };
+
+        if (conn.open) {
+            setupConnection();
+        } else {
+            conn.on('open', () => {
+                console.log('Connection now open');
+                setupConnection();
+            });
+        }
 
         conn.on('data', (data: any) => {
             handleData(data);
@@ -64,58 +85,70 @@ export const NetworkManager = () => {
             console.log('Connection closed');
             setConnectionStatus('DISCONNECTED');
             setGameState(GameState.MENU);
+            useGameStore.getState().addChatMessage('SYSTEM', 'Connection Lost');
+        });
+
+        conn.on('error', (err) => {
+            console.error('Connection error:', err);
+            useGameStore.getState().addChatMessage('SYSTEM', `Conn Error: ${err}`);
         });
     };
 
     const handleData = (packet: NetworkPacket) => {
+        // console.log('Received packet:', packet.type); // Too noisy for frame updates
         switch (packet.type) {
+            case 'PING':
+                connRef.current?.send({ type: 'PONG', payload: { time: packet.payload.time } });
+                break;
+            case 'PONG':
+                // Calculate latency if needed, for now just confirms connection
+                // console.log('Ping:', Date.now() - packet.payload.time, 'ms');
+                break;
             case 'PLAYER_UPDATE':
                 updateRemotePlayer(packet.payload);
                 break;
             case 'SHOOT':
-                // Visuals handled by event listener in Effects.tsx
                 window.dispatchEvent(new CustomEvent('SHOOT', {
                     detail: {
                         start: packet.payload.start,
                         end: packet.payload.end,
-                        color: '#ef4444' // Red for enemy
+                        color: '#ef4444'
                     }
                 }));
                 break;
             case 'HIT':
-                // Received damage
                 const dmg = packet.payload.damage;
                 const hitWeapon = packet.payload.weapon;
                 const newHealth = Math.max(0, useGameStore.getState().health - dmg);
                 setHealth(newHealth);
-
-                // If I died, tell the killer
                 if (newHealth <= 0) {
                     connRef.current?.send({
                         type: 'KILL',
                         payload: {
                             victim: peerRef.current?.id,
-                            weapon: hitWeapon // Tell them what killed me
+                            weapon: hitWeapon
                         }
                     });
                     setGameState(GameState.GAME_OVER);
-                    // Show feed for myself (I died)
                     useGameStore.getState().addKillFeed('Enemy', 'Player', hitWeapon);
-                    useGameStore.getState().showKillBanner('ELIMINATED BY ENEMY');
+                    useGameStore.getState().showKillBanner(1);
                 }
                 break;
             case 'KILL':
-                // I killed the opponent
                 const killWeapon = packet.payload.weapon || useGameStore.getState().currentWeapon;
                 incrementPlayerScore(killWeapon);
                 break;
             case 'START':
+                console.log('Received START packet. Starting game!');
+                useGameStore.getState().addChatMessage('SYSTEM', 'Game Started!');
                 setGameState(GameState.PLAYING);
                 break;
             case 'CHAT':
                 useGameStore.getState().addChatMessage('Opponent', packet.payload.text);
                 break;
             case 'READY':
+                console.log('Received READY packet:', packet.payload);
+                useGameStore.getState().addChatMessage('SYSTEM', `Opponent is ${packet.payload.isReady ? 'READY' : 'NOT READY'}`);
                 useGameStore.getState().setOpponentReady(packet.payload.isReady);
                 break;
         }
@@ -201,16 +234,23 @@ export const NetworkManager = () => {
         };
 
         const sendReady = (e: any) => {
-            if (connRef.current?.open) {
+            console.log('Attempting to send READY:', e.detail.isReady);
+            if (connRef.current) {
+                console.log('Connection open status:', connRef.current.open);
                 connRef.current.send({
                     type: 'READY',
                     payload: { isReady: e.detail.isReady }
                 });
+                console.log('READY packet sent');
+            } else {
+                console.warn('Cannot send READY: Connection not open');
             }
         };
 
         const startGame = () => {
-            if (connRef.current?.open && isHost) {
+            const currentIsHost = useGameStore.getState().isHost;
+            if (connRef.current && currentIsHost) {
+                console.log('Host starting game...');
                 connRef.current.send({ type: 'START', payload: {} });
                 setGameState(GameState.PLAYING);
             }

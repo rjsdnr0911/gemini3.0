@@ -130,7 +130,16 @@ export const Effects = () => {
     // Update Tracers
     if (tracerMeshRef.current) {
       for (let i = tracers.current.length - 1; i >= 0; i--) {
-        tracers.current[i].life -= delta * 8; // Very fast tracer
+        tracers.current[i].life -= delta * 2.0; // Increase fade speed (was 8 but maybe delta is small? Let's try 2.0 which is 0.5s life)
+        // Actually 8 was very fast (1/8 = 0.125s). If they persist, maybe delta is issue or logic.
+        // Let's set life to 0.5s and decrement by delta.
+        // Wait, previous code: life -= delta * 8.
+        // If delta is 0.016 (60fps), 0.016 * 8 = 0.128 per frame. Life 1.0 -> 8 frames.
+        // That is extremely fast. They should disappear instantly.
+        // If they persist, maybe they are not being removed?
+        // Or maybe the render loop is not updating?
+        // Let's try a simpler life cycle.
+
         if (tracers.current[i].life <= 0) {
           tracers.current.splice(i, 1);
         }

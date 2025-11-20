@@ -232,62 +232,35 @@ export const UI = () => {
                 {connectionStatus === 'CONNECTED' && (
                   <div className="mt-6">
                     <div className="flex justify-center gap-8 mb-4">
-                      <div className={`text-xl font-bold ${useGameStore.getState().isReady ? 'text-green-500' : 'text-gray-500'}`}>
-                        YOU: {useGameStore.getState().isReady ? 'READY' : 'NOT READY'}
+                      <div className={`text-xl font-bold ${isReady ? 'text-green-500' : 'text-gray-500'}`}>
+                        YOU: {isReady ? 'READY' : 'NOT READY'}
                       </div>
-                      <div className={`text-xl font-bold ${useGameStore.getState().isOpponentReady ? 'text-green-500' : 'text-gray-500'}`}>
-                        OPPONENT: {useGameStore.getState().isOpponentReady ? 'READY' : 'NOT READY'}
-                      </div>
+                      {/* Opponent status hidden as requested */}
                     </div>
 
-                    <button
-                      onClick={() => {
-                        const newReady = !useGameStore.getState().isReady;
-                        useGameStore.getState().setReady(newReady);
-                        window.dispatchEvent(new CustomEvent('SEND_READY', { detail: { isReady: newReady } }));
-
-                        // Host starts game if both ready
-                        if (newReady && useGameStore.getState().isOpponentReady) {
-                          setTimeout(() => {
-                            // Send START packet
-                            // NetworkManager handles auto-start on host side if we trigger it?
-                            // Actually NetworkManager has a START packet handler.
-                            // But we need to trigger it.
-                            // Let's just set GameState to PLAYING and send START.
-                            // But NetworkManager logic for START was inside handleConnection timeout.
-                            // We should move that logic here.
-                            // For now, let's just rely on manual start or auto start.
-                            // Let's make a "START GAME" button appear if both ready.
-                          }, 500);
-                        }
-                      }}
-                      className={`px-8 py-3 rounded font-bold text-xl ${useGameStore.getState().isReady ? 'bg-green-600' : 'bg-gray-600'}`}
-                    >
-                      {useGameStore.getState().isReady ? 'READY!' : 'CLICK TO READY'}
-                    </button>
-
-                    {useGameStore.getState().isReady && useGameStore.getState().isOpponentReady && (
+                    <div className="flex flex-col gap-4 items-center">
                       <button
                         onClick={() => {
-                          // Trigger Start
-                          // We need a way to tell NetworkManager to send START.
-                          // Let's use a custom event? Or just set state and let NetworkManager sync?
-                          // NetworkManager sends START on connection in previous code. We should change that.
-                          // Let's assume NetworkManager will be updated to listen for a START_GAME event or similar.
-                          // For now, we can just set local state and maybe NetworkManager syncs it?
-                          // No, we need to send a packet.
-                          // Let's add a hacky event for now or update NetworkManager later.
-                          // Wait, NetworkManager has `handleConnection` which sends START after 1s.
-                          // We should disable that auto-start in NetworkManager if we want this Lobby to work.
-                          // I will update NetworkManager to remove auto-start.
-                          // And here we dispatch a START_GAME event.
+                          const newReady = !isReady;
+                          useGameStore.getState().setReady(newReady);
+                          window.dispatchEvent(new CustomEvent('SEND_READY', { detail: { isReady: newReady } }));
+                        }}
+                        className={`px-8 py-3 rounded font-bold text-xl ${isReady ? 'bg-green-600' : 'bg-gray-600'}`}
+                      >
+                        {isReady ? 'READY!' : 'CLICK TO READY'}
+                      </button>
+
+                      {/* LAUNCH BUTTON - Always visible for Host */}
+                      <button
+                        onClick={() => {
+                          console.log('Dispatching START_GAME event');
                           window.dispatchEvent(new CustomEvent('START_GAME'));
                         }}
-                        className="block mx-auto mt-4 px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded animate-bounce"
+                        className="px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded animate-bounce"
                       >
                         LAUNCH MISSION
                       </button>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -314,26 +287,24 @@ export const UI = () => {
                 {connectionStatus === 'CONNECTED' && (
                   <div className="mt-6 text-center">
                     <div className="flex justify-center gap-8 mb-4">
-                      <div className={`text-xl font-bold ${useGameStore.getState().isReady ? 'text-green-500' : 'text-gray-500'}`}>
-                        YOU: {useGameStore.getState().isReady ? 'READY' : 'NOT READY'}
+                      <div className={`text-xl font-bold ${isReady ? 'text-green-500' : 'text-gray-500'}`}>
+                        YOU: {isReady ? 'READY' : 'NOT READY'}
                       </div>
-                      <div className={`text-xl font-bold ${useGameStore.getState().isOpponentReady ? 'text-green-500' : 'text-gray-500'}`}>
-                        HOST: {useGameStore.getState().isOpponentReady ? 'READY' : 'NOT READY'}
-                      </div>
+                      {/* Host status hidden as requested */}
                     </div>
 
                     <button
                       onClick={() => {
-                        const newReady = !useGameStore.getState().isReady;
+                        const newReady = !isReady;
                         useGameStore.getState().setReady(newReady);
                         window.dispatchEvent(new CustomEvent('SEND_READY', { detail: { isReady: newReady } }));
                       }}
-                      className={`px-8 py-3 rounded font-bold text-xl ${useGameStore.getState().isReady ? 'bg-green-600' : 'bg-gray-600'}`}
+                      className={`px-8 py-3 rounded font-bold text-xl ${isReady ? 'bg-green-600' : 'bg-gray-600'}`}
                     >
-                      {useGameStore.getState().isReady ? 'READY!' : 'CLICK TO READY'}
+                      {isReady ? 'READY!' : 'CLICK TO READY'}
                     </button>
 
-                    {useGameStore.getState().isReady && useGameStore.getState().isOpponentReady && (
+                    {isReady && isOpponentReady && (
                       <div className="mt-4 text-yellow-400 animate-pulse font-bold">
                         WAITING FOR HOST TO START...
                       </div>
@@ -354,6 +325,9 @@ export const UI = () => {
 
         <div className="mt-12 text-gray-400 text-sm">
           WASD to Move • SPACE to Jump • CLICK to Shoot • R to Reload
+        </div>
+        <div className="absolute bottom-4 left-4 w-1/3 h-1/3 pointer-events-auto">
+          <ChatBox />
         </div>
       </div>
     );

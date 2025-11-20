@@ -36,7 +36,7 @@ export interface MatchStats {
 }
 
 export interface NetworkPacket {
-  type: 'PLAYER_UPDATE' | 'SHOOT' | 'HIT' | 'KILL' | 'CHAT' | 'READY';
+  type: 'PLAYER_UPDATE' | 'SHOOT' | 'HIT' | 'KILL' | 'CHAT' | 'READY' | 'START' | 'PING' | 'PONG';
   payload: any;
 }
 
