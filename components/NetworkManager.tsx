@@ -143,6 +143,16 @@ export const NetworkManager = () => {
                 useGameStore.getState().addChatMessage('SYSTEM', 'Game Started!');
                 setGameState(GameState.PLAYING);
                 break;
+            case 'ROUND_END':
+                const winner = packet.payload.winner;
+                useGameStore.getState().incrementRoundScore(winner === 'HOST' ? (useGameStore.getState().isHost ? 'YOU' : 'ENEMY') : (useGameStore.getState().isHost ? 'ENEMY' : 'YOU'));
+                useGameStore.getState().addChatMessage('SYSTEM', `Round Won by ${winner === 'HOST' ? 'HOST' : 'CLIENT'}!`);
+                break;
+            case 'NEW_ROUND':
+                useGameStore.getState().resetRound();
+                useGameStore.getState().addChatMessage('SYSTEM', 'New Round Started!');
+                window.dispatchEvent(new CustomEvent('RESET_PLAYER')); // Trigger player reset
+                break;
             case 'CHAT':
                 useGameStore.getState().addChatMessage('Opponent', packet.payload.text);
                 break;
@@ -212,8 +222,6 @@ export const NetworkManager = () => {
 
         const sendHit = (e: any) => {
             if (connRef.current?.open) {
-                // I hit the enemy (RemotePlayer)
-                // Send damage packet
                 connRef.current.send({
                     type: 'HIT',
                     payload: {

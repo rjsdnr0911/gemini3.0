@@ -30,11 +30,18 @@ export const UI = () => {
     killFeed,
     killBanner,
     isReady,
-    isOpponentReady
+    isOpponentReady,
+    roundsWon,
+    opponentRoundsWon,
+    roundWinner,
+    settings,
+    updateSettings
   } = useGameStore();
 
   const [showMultiplayerMenu, setShowMultiplayerMenu] = useState(false);
   const [targetPeerId, setTargetPeerId] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const [showHitMarker, setShowHitMarker] = useState(false);
   const weapon = WEAPONS[currentWeapon];
@@ -173,10 +180,71 @@ export const UI = () => {
 
   if (gameState === GameState.MENU) {
     return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white z-50">
-        <h1 className="text-6xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 italic">
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white z-50">
+        <h1 className="text-6xl font-bold mb-8 text-cyan-400 tracking-tighter" style={{ textShadow: '0 0 20px cyan' }}>
           NEON FRAG
         </h1>
+
+        <div className="flex gap-4 mb-8">
+          <button
+            onClick={() => {
+              setMultiplayer(false, false);
+              useGameStore.getState().setGameState(GameState.PLAYING);
+            }}
+            className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 rounded text-xl font-bold transition-all hover:scale-105"
+          >
+            PLAY SOLO
+          </button>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded text-xl font-bold transition-all hover:scale-105"
+          >
+            SETTINGS
+          </button>
+        </div>
+
+        {/* Settings Modal */}
+        {showSettings && (
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
+            <div className="bg-gray-900 p-8 rounded-lg border border-cyan-500 w-96">
+              <h2 className="text-2xl font-bold mb-6 text-cyan-400">SETTINGS</h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm mb-1">Mouse Sensitivity ({settings.sensitivity.toFixed(1)})</label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="5.0"
+                    step="0.1"
+                    value={settings.sensitivity}
+                    onChange={(e) => updateSettings({ sensitivity: parseFloat(e.target.value) })}
+                    className="w-full accent-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">Zoom Sensitivity ({settings.zoomSensitivity.toFixed(1)})</label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="2.0"
+                    step="0.1"
+                    value={settings.zoomSensitivity}
+                    onChange={(e) => updateSettings({ zoomSensitivity: parseFloat(e.target.value) })}
+                    className="w-full accent-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowSettings(false)}
+                className="mt-8 w-full py-2 bg-cyan-600 hover:bg-cyan-500 rounded font-bold"
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        )}
 
         {!showMultiplayerMenu ? (
           <div className="flex flex-col gap-4">
@@ -321,7 +389,8 @@ export const UI = () => {
               Back to Menu
             </button>
           </div>
-        )}
+        )
+        }
 
         <div className="mt-12 text-gray-400 text-sm">
           WASD to Move • SPACE to Jump • CLICK to Shoot • R to Reload
@@ -329,7 +398,7 @@ export const UI = () => {
         <div className="absolute bottom-4 left-4 w-1/3 h-1/3 pointer-events-auto">
           <ChatBox />
         </div>
-      </div>
+      </div >
     );
   }
 
@@ -380,6 +449,25 @@ export const UI = () => {
           <div className="relative w-full h-full flex items-center justify-center opacity-80">
             <div className="w-full h-[1px] bg-black absolute"></div>
             <div className="h-full w-[1px] bg-black absolute"></div>
+            {/* Round Score */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 text-2xl font-bold text-white drop-shadow-lg">
+              <span className="text-cyan-400">YOU {roundsWon}</span>
+              <span className="text-gray-400">-</span>
+              <span className="text-red-500">{opponentRoundsWon} ENEMY</span>
+            </div>
+
+            {/* Round End Message */}
+            {roundWinner && (
+              <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
+                <div className="bg-black/50 px-12 py-6 rounded-lg backdrop-blur-sm border border-white/20 animate-in fade-in zoom-in duration-300">
+                  <h2 className={`text-6xl font-black italic tracking-tighter ${roundWinner === 'YOU' ? 'text-cyan-400' : 'text-red-500'}`} style={{ textShadow: '0 0 30px currentColor' }}>
+                    {roundWinner === 'YOU' ? 'ROUND WON' : 'ROUND LOST'}
+                  </h2>
+                </div>
+              </div>
+            )}
+
+            {/* Kill Feed */}
             {/* Mil-dots */}
             <div className="absolute w-[400px] h-[1px] flex justify-between">
               {[...Array(9)].map((_, i) => <div key={i} className="w-[1px] h-[10px] bg-black"></div>)}

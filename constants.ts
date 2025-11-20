@@ -5,13 +5,15 @@ export const MAP_WIDTH = 30;
 export const MAP_LENGTH = 80; // Long rectangular map
 export const WIN_SCORE = 3;
 
-export const PLAYER_SPEED = 6;
-export const PLAYER_SPRINT_SPEED = 10;
-export const PLAYER_CROUCH_SPEED = 3;
-export const PLAYER_JUMP_FORCE = 7;
+export const PLAYER_SPEED = 5;
+export const PLAYER_SPRINT_SPEED = 8;
+export const PLAYER_CROUCH_SPEED = 2.5;
+export const PLAYER_JUMP_FORCE = 7; // Increased from 5
 
 export const PLAYER_HEIGHT = 1.6;
-export const PLAYER_CROUCH_HEIGHT = 0.9;
+export const PLAYER_CROUCH_HEIGHT = 1.0;
+
+export const ROUND_WIN_COUNT = 3; // Best of 5 (First to 3)
 
 export const WEAPONS: Record<WeaponType, WeaponStats> = {
   [WeaponType.RIFLE]: {

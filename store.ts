@@ -17,8 +17,7 @@ interface GameStore {
   reloadWeapon: () => void;
   setReloading: (status: boolean) => void;
 
-  setGameState: (state: GameState) => void;
-  incrementScore: () => void;
+  incrementScore: () => void; // Added back if it was missing from interface
   incrementPlayerScore: (weapon?: WeaponType) => void;
   incrementEnemyScore: () => void;
 
@@ -62,6 +61,21 @@ interface GameStore {
   addChatMessage: (sender: string, text: string) => void;
   setReady: (isReady: boolean) => void;
   setOpponentReady: (isReady: boolean) => void;
+
+  // Round System
+  roundsWon: number;
+  opponentRoundsWon: number;
+  roundWinner: string | null; // 'YOU' or 'ENEMY'
+  incrementRoundScore: (winner: 'YOU' | 'ENEMY') => void;
+  resetRound: () => void;
+
+  // Settings
+  settings: {
+    sensitivity: number;
+    zoomSensitivity: number;
+    volume: number;
+  };
+  updateSettings: (settings: Partial<{ sensitivity: number; zoomSensitivity: number; volume: number }>) => void;
 }
 
 const INITIAL_STATS: MatchStats = {
@@ -115,11 +129,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   playerScore: 0,
   enemyScore: 0,
+  incrementScore: () => {
+    // Legacy or general score increment if needed, otherwise just keep for interface compliance
+    get().incrementPlayerScore();
+  },
   incrementPlayerScore: (weapon?: WeaponType) => {
     const state = useGameStore.getState();
     const killWeapon = weapon || state.currentWeapon;
-    state.addKillFeed('YOU', 'ENEMY', WEAPONS[killWeapon].name); // Use WEAPONS[killWeapon].name
-    state.showKillBanner(state.playerScore + 1); // Pass the new score for the banner
+    state.addKillFeed('YOU', 'ENEMY', WEAPONS[killWeapon].name);
+    state.showKillBanner(state.playerScore + 1);
     set((s) => ({
       playerScore: s.playerScore + 1,
       stats: { ...s.stats, playerKills: s.stats.playerKills + 1 }
@@ -130,7 +148,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       enemyScore: state.enemyScore + 1,
       stats: { ...state.stats, enemyKills: state.stats.enemyKills + 1 }
     }));
-    get().addKillFeed('ENEMY', 'YOU', 'RIFLE'); // Enemy always uses Rifle/Default for now
+    get().addKillFeed('ENEMY', 'YOU', 'RIFLE');
   },
 
   stats: INITIAL_STATS,
@@ -210,5 +228,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
     chatMessages: [...state.chatMessages, { sender, text, timestamp: Date.now() }]
   })),
   setReady: (isReady) => set({ isReady }),
-  setOpponentReady: (isReady) => set({ isOpponentReady })
+  setOpponentReady: (isReady) => set({ isOpponentReady: isReady }),
+
+  // Round System Implementation
+  roundsWon: 0,
+  opponentRoundsWon: 0,
+  roundWinner: null,
+  incrementRoundScore: (winner) => set((state) => {
+    if (winner === 'YOU') return { roundsWon: state.roundsWon + 1, roundWinner: 'YOU' };
+    else return { opponentRoundsWon: state.opponentRoundsWon + 1, roundWinner: 'ENEMY' };
+  }),
+  resetRound: () => set({
+    health: 100,
+    ammo: {
+      [WeaponType.RIFLE]: WEAPONS[WeaponType.RIFLE].maxAmmo,
+      [WeaponType.PISTOL]: WEAPONS[WeaponType.PISTOL].maxAmmo,
+      [WeaponType.KNIFE]: 1,
+      [WeaponType.SNIPER]: WEAPONS[WeaponType.SNIPER].maxAmmo,
+    },
+    isReloading: false,
+    roundWinner: null,
+    // Position reset is handled in Player component via event or state check
+  }),
+
+  // Settings Implementation
+  settings: {
+    sensitivity: 1.0,
+    zoomSensitivity: 0.5,
+    volume: 0.5
+  },
+  updateSettings: (newSettings) => set((state) => ({
+    settings: { ...state.settings, ...newSettings }
+  }))
 }));

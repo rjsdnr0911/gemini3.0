@@ -21,17 +21,8 @@ import { audio } from '../services/audioService';
 import { controls, resetControls } from '../controls';
 
 export const Player = () => {
-  const rigidBody = useRef<RapierRigidBody>(null);
-  const weaponGroupRef = useRef<Group>(null);
   const { camera, scene } = useThree();
 
-  const [isFiring, setIsFiring] = useState(false);
-  const [isAiming, setIsAiming] = useState(false);
-  const isCycling = useRef(false); // For Sniper bolt action
-
-  const lastShotTime = useRef(0);
-  const lastStepTime = useRef(0);
-  const currentRecoil = useRef(0);
   const baseFov = 75;
   const aimFovRifle = 40;
   const aimFovSniper = 15; // High zoom for sniper
@@ -51,8 +42,20 @@ export const Player = () => {
     isReloading,
     setReloading,
     decrementAmmo,
-    switchWeapon
+    switchWeapon,
+    settings // Get settings from store
   } = useGameStore();
+
+  // Refs & State
+  const rigidBody = useRef<RapierRigidBody>(null);
+  const weaponGroupRef = useRef<Group>(null);
+  const isCycling = useRef(false);
+  const lastShotTime = useRef(0);
+  const lastStepTime = useRef(0);
+  const currentRecoil = useRef(0);
+
+  const [isFiring, setIsFiring] = useState(false);
+  const [isAiming, setIsAiming] = useState(false);
 
   // Perform Reload Logic
   const performReload = () => {
