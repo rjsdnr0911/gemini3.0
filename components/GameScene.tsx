@@ -17,7 +17,7 @@ export const GameScene = () => {
 
   return (
     <div className="w-full h-full bg-gray-900">
-      <Canvas shadows camera={{ fov: 75 }}>
+      <Canvas shadows camera={{ fov: 75, far: 300 }}>
         {/* Environment Lighting */}
         <hemisphereLight intensity={0.6} groundColor="#0f172a" color="#e2e8f0" />
         <ambientLight intensity={0.5} />
@@ -43,8 +43,8 @@ export const GameScene = () => {
         {/* Global Effects System */}
         <Effects />
 
-        {/* Lighter Fog for better silhouette visibility */}
-        <fog attach="fog" args={['#1e1b4b', 5, 70]} />
+        {/* Lighter Fog for better silhouette visibility - Adjusted for long distance */}
+        <fog attach="fog" args={['#1e1b4b', 50, 250]} />
       </Canvas>
     </div>
   );
