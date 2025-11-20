@@ -39,10 +39,24 @@ const RifleModel = ({ isFiring }: { isFiring: boolean }) => (
       <boxGeometry args={[0.08, 0.04, 0.6]} />
       <meshStandardMaterial color="#475569" />
     </mesh>
+    {/* Side Rails */}
+    <mesh name="WEAPON_MODEL" position={[0.06, 0.05, 0.1]}>
+      <boxGeometry args={[0.02, 0.04, 0.3]} />
+      <meshStandardMaterial color="#1e293b" />
+    </mesh>
+    <mesh name="WEAPON_MODEL" position={[-0.06, 0.05, 0.1]}>
+      <boxGeometry args={[0.02, 0.04, 0.3]} />
+      <meshStandardMaterial color="#1e293b" />
+    </mesh>
     {/* Barrel */}
     <mesh name="WEAPON_MODEL" position={[0, 0.05, -0.4]} rotation={[Math.PI / 2, 0, 0]}>
       <cylinderGeometry args={[0.035, 0.035, 0.8, 16]} />
       <meshStandardMaterial color="#64748b" metalness={0.8} roughness={0.2} />
+    </mesh>
+    {/* Muzzle Brake */}
+    <mesh name="WEAPON_MODEL" position={[0, 0.05, -0.82]} rotation={[Math.PI / 2, 0, 0]}>
+      <cylinderGeometry args={[0.04, 0.04, 0.1, 8]} />
+      <meshStandardMaterial color="#1e293b" />
     </mesh>
     {/* Handguard */}
     <mesh name="WEAPON_MODEL" position={[0, 0.05, -0.25]}>
@@ -169,9 +183,14 @@ const SniperModel = ({ isFiring, isCycling }: { isFiring: boolean, isCycling: bo
           <cylinderGeometry args={[0.05, 0.06, 0.4, 16]} />
           <meshStandardMaterial color="#000000" roughness={0.1} />
         </mesh>
+        {/* Lens Reflection */}
         <mesh position={[0, 0, -0.201]} rotation={[Math.PI / 2, 0, 0]}>
           <circleGeometry args={[0.045]} />
-          <meshBasicMaterial color="#818cf8" opacity={0.5} transparent />
+          <meshStandardMaterial color="#818cf8" metalness={1} roughness={0} emissive="#4f46e5" emissiveIntensity={0.2} />
+        </mesh>
+        <mesh position={[0, 0, 0.201]} rotation={[Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.045]} />
+          <meshStandardMaterial color="#1e1b4b" metalness={0.5} roughness={0.2} />
         </mesh>
       </group>
       {/* Stock */}

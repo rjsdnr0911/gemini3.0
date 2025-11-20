@@ -157,184 +157,69 @@ export const Player = () => {
     }
   }, [playerScore, enemyScore, health, setGameState]);
 
-  // Game Loop
-  useFrame((state, delta) => {
-    if (!rigidBody.current || gameState !== GameState.PLAYING) return;
+  // Initial Spawn Logic
+  useEffect(() => {
+    if (rigidBody.current) {
+      const isHost = useGameStore.getState().isHost;
+      const isMultiplayer = useGameStore.getState().isMultiplayer;
 
-    // --- 0. Handle Triggers ---
-    if (controls.reload) { performReload(); controls.reload = false; }
-    if (controls.weapon1) { switchWeapon(WeaponType.RIFLE); controls.weapon1 = false; setReloading(false); isCycling.current = false; }
-    if (controls.weapon2) { switchWeapon(WeaponType.PISTOL); controls.weapon2 = false; setReloading(false); isCycling.current = false; }
-    if (controls.weapon3) { switchWeapon(WeaponType.KNIFE); controls.weapon3 = false; setReloading(false); isCycling.current = false; }
-    if (controls.weapon4) { switchWeapon(WeaponType.SNIPER); controls.weapon4 = false; setReloading(false); isCycling.current = false; }
+      // Single Player: Spawn at [0, 5, 35]
+      // Multiplayer Host: [0, 5, 35]
+      // Multiplayer Client: [0, 5, -35]
 
-    setIsFiring(controls.fire);
+      let spawnPos = new Vector3(0, 5, 35);
+      let initialRotY = 0; // Default face -Z (North)
 
-    // Aim logic: prevent aiming if cycling bolt
-    let aiming = controls.aim;
-    if (currentWeapon === WeaponType.SNIPER && isCycling.current) {
-      aiming = false;
-    }
-    setIsAiming(aiming);
-
-    // --- 1. Movement Logic ---
-    const velocity = rigidBody.current.linvel();
-
-    let speed = PLAYER_SPEED;
-    if (controls.crouch) speed = PLAYER_CROUCH_SPEED;
-    else if (controls.sprint && controls.forward) speed = PLAYER_SPRINT_SPEED;
-
-    const frontVector = new Vector3(0, 0, 0);
-    const sideVector = new Vector3(0, 0, 0);
-
-    if (controls.forward) frontVector.z -= 1;
-    if (controls.backward) frontVector.z += 1;
-    if (controls.left) sideVector.x -= 1;
-    if (controls.right) sideVector.x += 1;
-
-    if (Math.abs(controls.moveVector.x) > 0.1 || Math.abs(controls.moveVector.y) > 0.1) {
-      sideVector.x = controls.moveVector.x;
-      frontVector.z = controls.moveVector.y;
-      if (Math.sqrt(controls.moveVector.x ** 2 + controls.moveVector.y ** 2) > 0.8 && !controls.crouch) {
-        speed = PLAYER_SPRINT_SPEED;
-      } else if (controls.crouch) {
-        speed = PLAYER_CROUCH_SPEED;
-      } else {
-        speed = PLAYER_SPEED;
+      if (isMultiplayer) {
+        if (isHost) {
+          spawnPos.set(0, 5, 35);
+          initialRotY = 0; // Host at +35 looks -Z (towards center)
+        } else {
+          spawnPos.set(0, 5, -35);
+          initialRotY = Math.PI; // Client at -35 looks +Z (towards center)
+        }
       }
-    }
 
-    const euler = new Euler(0, camera.rotation.y, 0, 'YXZ');
-    const direction = new Vector3();
-    direction
-      .addVectors(frontVector, sideVector)
-      .normalize()
-      .applyEuler(euler)
-      .multiplyScalar(speed);
+      rigidBody.current.setTranslation(spawnPos, true);
+      rigidBody.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
 
-    rigidBody.current.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
+      // Force Camera Rotation
+      camera.rotation.set(0, initialRotY, 0);
 
-    // --- Jump Logic with Raycast Ground Check ---
-    const raycaster = new Raycaster();
-    const rbPos = rigidBody.current.translation();
-    // Fix: Convert Rapier Vector to Three.js Vector3
-    raycaster.set(new Vector3(rbPos.x, rbPos.y, rbPos.z), new Vector3(0, -1, 0));
-    raycaster.far = 1.5;
-
-    const intersects = raycaster.intersectObjects(scene.children, true);
-    const isGrounded = intersects.some(hit => hit.distance < 1.2 && (hit.object.name === 'FLOOR' || hit.object.name === 'WALL'));
-
-    // Fallback: Velocity check if raycast fails (e.g. on edge)
-    const isVelocityGrounded = Math.abs(velocity.y) < 0.1;
-
-    if (controls.jump && (isGrounded || isVelocityGrounded) && !controls.crouch) {
-      rigidBody.current.applyImpulse({ x: 0, y: PLAYER_JUMP_FORCE, z: 0 }, true);
-      controls.jump = false;
-      audio.playJump();
-    }
-
-    // Footsteps
-    if ((isGrounded || isVelocityGrounded) && direction.length() > 0.1) {
-      const stepInterval = controls.sprint ? 300 : 500; // Faster steps when sprinting
-      const now = Date.now();
-      if (!lastStepTime.current) lastStepTime.current = 0;
-
-      if (now - lastStepTime.current > stepInterval) {
-        audio.playFootstep();
-        lastStepTime.current = now;
-      }
-    } else {
-      // Reset step timer when stopping so next step is immediate
-      if (lastStepTime.current && Date.now() - lastStepTime.current > 500) {
-        lastStepTime.current = 0;
-      }
-    }
-
-    // --- 2. Camera & Look ---
-    const pos = rigidBody.current.translation();
-    const targetHeight = controls.crouch ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
-    const smoothedHeight = MathUtils.lerp(camera.position.y - pos.y, targetHeight, delta * 8);
-
-    camera.position.set(pos.x, pos.y + smoothedHeight, pos.z);
-
-    if (controls.lookDelta.x !== 0 || controls.lookDelta.y !== 0) {
-      camera.rotation.y -= controls.lookDelta.x * delta * 2;
-      camera.rotation.x -= controls.lookDelta.y * delta * 2;
-      camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
+      // Reset look delta
       controls.lookDelta = { x: 0, y: 0 };
     }
 
-    currentRecoil.current = MathUtils.lerp(currentRecoil.current, 0, delta * 10);
+    const handleReset = () => {
+      if (rigidBody.current) {
+        const isHost = useGameStore.getState().isHost;
+        const isMultiplayer = useGameStore.getState().isMultiplayer;
 
-    let targetFov = baseFov;
-    if (isAiming) {
-      if (currentWeapon === WeaponType.RIFLE) targetFov = aimFovRifle;
-      if (currentWeapon === WeaponType.SNIPER) targetFov = aimFovSniper;
-    } else if (controls.sprint && controls.forward && !controls.crouch) {
-      targetFov = baseFov + 10; // Sprint FOV effect
-    }
+        let spawnPos = new Vector3(0, 5, 35);
+        let initialRotY = 0;
 
-    // Fix: Check if camera is PerspectiveCamera before accessing fov
-    if (camera instanceof PerspectiveCamera) {
-      camera.fov = MathUtils.lerp(camera.fov, targetFov, delta * 10);
-      camera.updateProjectionMatrix();
-    }
-
-    // --- 3. Weapon Sync ---
-    if (weaponGroupRef.current) {
-      weaponGroupRef.current.position.copy(camera.position);
-      weaponGroupRef.current.rotation.copy(camera.rotation);
-      weaponGroupRef.current.rotateX(currentRecoil.current);
-    }
-
-    // --- 4. Firing Logic ---
-    const now = Date.now();
-    const weapon = WEAPONS[currentWeapon];
-
-    if (isReloading || (currentWeapon === WeaponType.SNIPER && isCycling.current)) {
-      setIsFiring(false);
-      return;
-    }
-
-    if (isFiring && now - lastShotTime.current > weapon.fireRate && ammo[currentWeapon] > 0) {
-      lastShotTime.current = now;
-      decrementAmmo();
-      fireWeapon(weapon.damage, weapon.range);
-
-      if (currentWeapon === WeaponType.KNIFE) audio.playKnife();
-      else audio.playShoot(currentWeapon === WeaponType.RIFLE ? 'RIFLE' : 'PISTOL');
-
-      currentRecoil.current += (isAiming ? weapon.recoil * 0.5 : weapon.recoil) * 0.5;
-
-      // Trigger Bolt Action for Sniper
-      if (currentWeapon === WeaponType.SNIPER) {
-        isCycling.current = true;
-        // Delay the bolt sound slightly to match kickback
-        setTimeout(() => audio.playBolt(), 300);
-
-        // Unlock cycling after duration
-        setTimeout(() => {
-          isCycling.current = false;
-        }, 1200); // 1.2s cycle time
-      }
-
-    } else if (isFiring && ammo[currentWeapon] <= 0) {
-      performReload();
-    }
-    // --- 5. Network Sync ---
-    if (useGameStore.getState().isMultiplayer) {
-      window.dispatchEvent(new CustomEvent('PLAYER_UPDATE', {
-        detail: {
-          position: rigidBody.current.translation(),
-          rotation: { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z },
-          velocity: rigidBody.current.linvel(),
-          animState: controls.jump ? 'JUMP' : (controls.forward || controls.left ? 'RUN' : 'IDLE'), // Simple anim state
-          currentWeapon: currentWeapon,
-          isFiring: isFiring
+        if (isMultiplayer) {
+          if (isHost) {
+            spawnPos.set(0, 5, 35);
+            initialRotY = 0;
+          } else {
+            spawnPos.set(0, 5, -35);
+            initialRotY = Math.PI;
+          }
         }
-      }));
-    }
-  });
+
+        rigidBody.current.setTranslation(spawnPos, true);
+        rigidBody.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        camera.rotation.set(0, initialRotY, 0);
+        controls.lookDelta = { x: 0, y: 0 };
+
+        // Reset Health visually if needed (Store handles value)
+      }
+    };
+
+    window.addEventListener('RESET_PLAYER', handleReset);
+    return () => window.removeEventListener('RESET_PLAYER', handleReset);
+  }, []);
 
   const fireWeapon = (damage: number, range: number) => {
     const raycaster = new Raycaster();
@@ -367,7 +252,7 @@ export const Player = () => {
         const finalDamage = isHeadshot ? damage * 2 : damage;
 
         if (isHeadshot) {
-          audio.playHeadshot(); // We will implement this next
+          audio.playHeadshot();
         } else {
           audio.playHit();
         }
@@ -382,7 +267,6 @@ export const Player = () => {
     }
 
     // Dispatch SHOOT event for tracer
-    // Start position: slightly offset from camera to simulate weapon barrel
     const startPos = new Vector3().copy(camera.position);
     const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
     const down = new Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
@@ -399,17 +283,179 @@ export const Player = () => {
     recordShot(hitEnemy);
   };
 
-  // Determine Spawn Point based on Host/Client
+  // Game Loop
+  useFrame((state, delta) => {
+    if (!rigidBody.current || gameState !== GameState.PLAYING) return;
+
+    // --- 0. Handle Triggers ---
+    if (controls.reload) { performReload(); controls.reload = false; }
+    if (controls.weapon1) { switchWeapon(WeaponType.RIFLE); controls.weapon1 = false; setReloading(false); isCycling.current = false; }
+    if (controls.weapon2) { switchWeapon(WeaponType.PISTOL); controls.weapon2 = false; setReloading(false); isCycling.current = false; }
+    if (controls.weapon3) { switchWeapon(WeaponType.KNIFE); controls.weapon3 = false; setReloading(false); isCycling.current = false; }
+    if (controls.weapon4) { switchWeapon(WeaponType.SNIPER); controls.weapon4 = false; setReloading(false); isCycling.current = false; }
+
+    setIsFiring(controls.fire);
+
+    // Aim logic: prevent aiming if cycling bolt
+    let aiming = controls.aim;
+    if (currentWeapon === WeaponType.SNIPER && isCycling.current) {
+      aiming = false;
+    }
+    setIsAiming(aiming);
+
+    // --- 1. Movement Logic ---
+    const velocity = rigidBody.current.linvel();
+
+    let speed = PLAYER_SPEED;
+    if (controls.crouch) speed = PLAYER_CROUCH_SPEED;
+    else if (controls.sprint && controls.forward) speed = PLAYER_SPRINT_SPEED;
+
+    // Get Forward and Right vectors from Camera Quaternion
+    const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    forward.y = 0;
+    forward.normalize();
+
+    const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    right.y = 0;
+    right.normalize();
+
+    const direction = new Vector3(0, 0, 0);
+
+    if (controls.forward) direction.add(forward);
+    if (controls.backward) direction.sub(forward);
+    if (controls.right) direction.add(right);
+    if (controls.left) direction.sub(right);
+
+    if (direction.lengthSq() > 0) {
+      direction.normalize().multiplyScalar(speed);
+    }
+
+    rigidBody.current.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
+
+    // --- Jump Logic with Raycast Ground Check ---
+    const raycaster = new Raycaster();
+    const rbPos = rigidBody.current.translation();
+    raycaster.set(new Vector3(rbPos.x, rbPos.y, rbPos.z), new Vector3(0, -1, 0));
+    raycaster.far = 1.5;
+
+    const groundIntersects = raycaster.intersectObjects(scene.children, true);
+    const isGrounded = groundIntersects.some(hit => hit.distance < 1.2 && (hit.object.name === 'FLOOR' || hit.object.name === 'WALL'));
+    const isVelocityGrounded = Math.abs(velocity.y) < 0.1;
+
+    if (controls.jump && (isGrounded || isVelocityGrounded) && !controls.crouch) {
+      rigidBody.current.applyImpulse({ x: 0, y: PLAYER_JUMP_FORCE, z: 0 }, true);
+      controls.jump = false;
+      audio.playJump();
+    }
+
+    // Footsteps
+    if ((isGrounded || isVelocityGrounded) && direction.length() > 0.1) {
+      const stepInterval = controls.sprint ? 300 : 500;
+      const now = Date.now();
+      if (!lastStepTime.current) lastStepTime.current = 0;
+
+      if (now - lastStepTime.current > stepInterval) {
+        audio.playFootstep();
+        lastStepTime.current = now;
+      }
+    } else {
+      if (lastStepTime.current && Date.now() - lastStepTime.current > 500) {
+        lastStepTime.current = 0;
+      }
+    }
+
+    // --- 2. Camera & Look ---
+    const pos = rigidBody.current.translation();
+    const targetHeight = controls.crouch ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+    const smoothedHeight = MathUtils.lerp(camera.position.y - pos.y, targetHeight, delta * 8);
+
+    camera.position.set(pos.x, pos.y + smoothedHeight, pos.z);
+
+    if (controls.lookDelta.x !== 0 || controls.lookDelta.y !== 0) {
+      camera.rotation.y -= controls.lookDelta.x * delta * 2;
+      camera.rotation.x -= controls.lookDelta.y * delta * 2;
+      camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
+      controls.lookDelta = { x: 0, y: 0 };
+    }
+
+    currentRecoil.current = MathUtils.lerp(currentRecoil.current, 0, delta * 10);
+
+    let targetFov = baseFov;
+    if (isAiming) {
+      if (currentWeapon === WeaponType.RIFLE) targetFov = aimFovRifle;
+      if (currentWeapon === WeaponType.SNIPER) targetFov = aimFovSniper;
+    } else if (controls.sprint && controls.forward && !controls.crouch) {
+      targetFov = baseFov + 10;
+    }
+
+    if (camera instanceof PerspectiveCamera) {
+      camera.fov = MathUtils.lerp(camera.fov, targetFov, delta * 10);
+      camera.updateProjectionMatrix();
+    }
+
+    // --- 3. Weapon Sync ---
+    if (weaponGroupRef.current) {
+      weaponGroupRef.current.position.copy(camera.position);
+      weaponGroupRef.current.rotation.copy(camera.rotation);
+      weaponGroupRef.current.rotateX(currentRecoil.current);
+    }
+
+    // --- 4. Firing Logic ---
+    const now = Date.now();
+    const weapon = WEAPONS[currentWeapon];
+
+    if (isReloading || (currentWeapon === WeaponType.SNIPER && isCycling.current)) {
+      setIsFiring(false);
+      return;
+    }
+
+    if (isFiring && now - lastShotTime.current > weapon.fireRate && ammo[currentWeapon] > 0) {
+      lastShotTime.current = now;
+      decrementAmmo();
+      fireWeapon(weapon.damage, weapon.range);
+
+      if (currentWeapon === WeaponType.KNIFE) audio.playKnife();
+      else audio.playShoot(currentWeapon === WeaponType.RIFLE ? 'RIFLE' : 'PISTOL');
+
+      currentRecoil.current += (isAiming ? weapon.recoil * 0.5 : weapon.recoil) * 0.5;
+
+      if (currentWeapon === WeaponType.SNIPER) {
+        isCycling.current = true;
+        setTimeout(() => audio.playBolt(), 300);
+        setTimeout(() => {
+          isCycling.current = false;
+        }, 1200);
+      }
+
+    } else if (isFiring && ammo[currentWeapon] <= 0) {
+      performReload();
+    }
+    // --- 5. Network Sync ---
+    if (useGameStore.getState().isMultiplayer) {
+      window.dispatchEvent(new CustomEvent('PLAYER_UPDATE', {
+        detail: {
+          position: rigidBody.current.translation(),
+          rotation: { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z },
+          velocity: rigidBody.current.linvel(),
+          animState: controls.jump ? 'JUMP' : (controls.forward || controls.left ? 'RUN' : 'IDLE'),
+          currentWeapon: currentWeapon,
+          isFiring: isFiring
+        }
+      }));
+    }
+  });
+
+  // Determine Spawn Point based on Host/Client (for initial render prop, though useEffect overrides)
   const isHost = useGameStore(state => state.isHost);
-  const spawnPos = isHost ? [0, 5, 35] : [0, 5, -35]; // Opposite ends
-  const spawnRot = isHost ? [0, Math.PI, 0] : [0, 0, 0]; // Face each other
+  const spawnPos = isHost ? [0, 5, 35] : [0, 5, -35];
+  const spawnRot = isHost ? [0, 0, 0] : [0, Math.PI, 0]; // Fixed: Host 0, Client PI
 
   return (
     <group>
       <RigidBody
         ref={rigidBody}
         position={spawnPos as [number, number, number]}
-        rotation={spawnRot as [number, number, number]} // Initial rotation
+        rotation={spawnRot as [number, number, number]}
         colliders={false}
         enabledRotations={[false, false, false]}
         mass={1}

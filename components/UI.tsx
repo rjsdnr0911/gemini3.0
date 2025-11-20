@@ -180,21 +180,24 @@ export const UI = () => {
 
   if (gameState === GameState.MENU) {
     return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white z-50">
+      <div className="absolute inset-0 flex flex-col items-center justify-center z-50 text-white overflow-hidden">
+        {/* Background Image */}
+        <div
+          className="absolute inset-0 z-[-1] bg-cover bg-center"
+          style={{
+            backgroundImage: 'url(/main_menu_bg.png)',
+            filter: 'brightness(0.4) blur(2px)'
+          }}
+        />
+
+        {/* Animated Grid Overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.1)_1px,transparent_1px)] bg-[size:40px_40px] [transform:perspective(500px)_rotateX(60deg)] origin-bottom opacity-30 animate-pulse pointer-events-none"></div>
+
         <h1 className="text-6xl font-bold mb-8 text-cyan-400 tracking-tighter" style={{ textShadow: '0 0 20px cyan' }}>
           NEON FRAG
         </h1>
 
         <div className="flex gap-4 mb-8">
-          <button
-            onClick={() => {
-              setMultiplayer(false, false);
-              useGameStore.getState().setGameState(GameState.PLAYING);
-            }}
-            className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 rounded text-xl font-bold transition-all hover:scale-105"
-          >
-            PLAY SOLO
-          </button>
           <button
             onClick={() => setShowSettings(true)}
             className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded text-xl font-bold transition-all hover:scale-105"
@@ -232,6 +235,17 @@ export const UI = () => {
                     value={settings.zoomSensitivity}
                     onChange={(e) => updateSettings({ zoomSensitivity: parseFloat(e.target.value) })}
                     className="w-full accent-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">Nickname</label>
+                  <input
+                    type="text"
+                    value={useGameStore.getState().nickname}
+                    onChange={(e) => useGameStore.getState().setNickname(e.target.value)}
+                    className="w-full bg-black p-2 rounded border border-gray-600 focus:border-cyan-500 outline-none text-white"
+                    placeholder="Enter Nickname"
+                    maxLength={12}
                   />
                 </div>
               </div>
@@ -403,16 +417,16 @@ export const UI = () => {
   }
 
   if (gameState === 'GAME_OVER') {
-    const won = playerScore >= WIN_SCORE;
+    const won = useGameStore.getState().matchWinner === 'YOU';
     return (
       <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 text-white">
         <h1 className={`text-7xl font-bold mb-2 ${won ? 'text-green-500' : 'text-red-500'}`}>
-          {won ? 'VICTORY' : 'DEFEAT'}
+          {won ? 'MATCH VICTORY' : 'MATCH DEFEAT'}
         </h1>
         <div className="flex gap-8 mb-8 text-2xl font-mono">
-          <span className="text-cyan-400">YOU: {playerScore}</span>
+          <span className="text-cyan-400">{useGameStore.getState().nickname}: {playerScore}</span>
           <span className="text-gray-500">-</span>
-          <span className="text-purple-400">ENEMY: {enemyScore}</span>
+          <span className="text-purple-400">{useGameStore.getState().opponentNickname}: {enemyScore}</span>
         </div>
 
         <div className="bg-gray-800 border-l-4 border-yellow-500 p-6 max-w-2xl w-full mb-8 shadow-lg">
@@ -451,9 +465,9 @@ export const UI = () => {
             <div className="h-full w-[1px] bg-black absolute"></div>
             {/* Round Score */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 text-2xl font-bold text-white drop-shadow-lg">
-              <span className="text-cyan-400">YOU {roundsWon}</span>
+              <span className="text-cyan-400">{useGameStore.getState().nickname} {roundsWon}</span>
               <span className="text-gray-400">-</span>
-              <span className="text-red-500">{opponentRoundsWon} ENEMY</span>
+              <span className="text-red-500">{opponentRoundsWon} {useGameStore.getState().opponentNickname}</span>
             </div>
 
             {/* Round End Message */}
@@ -480,6 +494,17 @@ export const UI = () => {
           <div className="absolute bottom-[20%] text-green-500 text-xs font-mono tracking-widest opacity-80">
             RANGE: {Math.floor(Math.random() * 100 + 50)}m <br />
             WIND: NEGATIVE
+          </div>
+        </div>
+      )}
+
+      {/* --- ROUND END OVERLAY (Global) --- */}
+      {roundWinner && (
+        <div className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none">
+          <div className="bg-black/50 px-12 py-6 rounded-lg backdrop-blur-sm border border-white/20 animate-in fade-in zoom-in duration-300">
+            <h2 className={`text-6xl font-black italic tracking-tighter ${roundWinner === 'YOU' ? 'text-cyan-400' : 'text-red-500'}`} style={{ textShadow: '0 0 30px currentColor' }}>
+              {roundWinner === 'YOU' ? 'ROUND WON' : 'ROUND LOST'}
+            </h2>
           </div>
         </div>
       )}
@@ -528,10 +553,10 @@ export const UI = () => {
       {/* Scoreboard Top */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-12 text-3xl font-black bg-black/50 px-8 py-2 rounded-full backdrop-blur-sm border border-white/10">
         <div className="text-cyan-400 flex items-center gap-2">
-          <Trophy size={24} /> {playerScore}
+          <Trophy size={24} /> {roundsWon}
         </div>
         <div className="text-purple-500 flex items-center gap-2">
-          {enemyScore} <Skull size={24} />
+          {opponentRoundsWon} <Skull size={24} />
         </div>
       </div>
 
@@ -562,11 +587,14 @@ export const UI = () => {
           if (feed.weapon === 'PISTOL') WeaponIcon = Move; // Placeholder
           if (feed.weapon === 'KNIFE') WeaponIcon = X;
 
+          const killerName = (feed.killer === 'YOU' || feed.killer === 'Player') ? useGameStore.getState().nickname : useGameStore.getState().opponentNickname;
+          const victimName = (feed.victim === 'YOU' || feed.victim === 'Player') ? useGameStore.getState().nickname : useGameStore.getState().opponentNickname;
+
           return (
             <div key={feed.id} className="bg-black/60 text-white px-3 py-1 rounded border-r-2 border-red-500 flex items-center gap-2 text-sm animate-in slide-in-from-right fade-in duration-300">
-              <span className={feed.killer === 'Player' || feed.killer === 'YOU' ? 'text-cyan-400 font-bold' : 'text-red-400'}>{feed.killer}</span>
+              <span className={feed.killer === 'Player' || feed.killer === 'YOU' ? 'text-cyan-400 font-bold' : 'text-red-400'}>{killerName}</span>
               <WeaponIcon size={14} className="text-gray-400" />
-              <span className={feed.victim === 'Player' || feed.victim === 'YOU' ? 'text-cyan-400 font-bold' : 'text-red-400'}>{feed.victim}</span>
+              <span className={feed.victim === 'Player' || feed.victim === 'YOU' ? 'text-cyan-400 font-bold' : 'text-red-400'}>{victimName}</span>
             </div>
           );
         })}
@@ -584,7 +612,7 @@ export const UI = () => {
             ELIMINATED
           </div>
           <div className="text-red-500 font-mono tracking-[0.5em] text-sm font-bold mt-1">
-            ENEMY NEUTRALIZED
+            {useGameStore.getState().opponentNickname.toUpperCase()}
           </div>
         </div>
       )}
@@ -592,14 +620,14 @@ export const UI = () => {
       {/* --- MOBILE CONTROLS OVERLAY --- */}
       {isMobile && (
         <div className="absolute inset-0 pointer-events-auto">
-          {/* Left Joystick Area */}
-          <div className="absolute bottom-8 left-8 w-32 h-32 bg-white/10 rounded-full border border-white/20 flex items-center justify-center z-30"
+          {/* Left Joystick Area - Enlarged */}
+          <div className="absolute bottom-12 left-8 w-40 h-40 bg-white/10 rounded-full border border-white/20 flex items-center justify-center z-30"
             ref={joystickRef}
             onTouchStart={handleJoystickStart}
             onTouchMove={handleJoystickMove}
             onTouchEnd={handleJoystickEnd}
           >
-            <div className="w-12 h-12 bg-cyan-500/50 rounded-full shadow-[0_0_10px_cyan]"
+            <div className="w-16 h-16 bg-cyan-500/50 rounded-full shadow-[0_0_10px_cyan]"
               style={{ transform: `translate(${joystickPos.x}px, ${joystickPos.y}px)` }}
             />
           </div>
@@ -612,56 +640,58 @@ export const UI = () => {
           />
 
           {/* Action Buttons (Right Side) - Higher Z-index to sit above Look Pad */}
-          <div className="absolute bottom-8 right-8 flex flex-col gap-4 z-20" onTouchStart={(e) => e.stopPropagation()}>
-            <div className="flex gap-4">
+          <div className="absolute bottom-12 right-8 flex flex-col gap-6 z-20" onTouchStart={(e) => e.stopPropagation()}>
+            <div className="flex gap-6 justify-end">
               <button
-                className="w-16 h-16 bg-white/10 border border-white/30 rounded-full flex items-center justify-center active:bg-white/30"
+                className="w-20 h-20 bg-white/10 border border-white/30 rounded-full flex items-center justify-center active:bg-white/30 backdrop-blur-sm"
                 onTouchStart={(e) => { e.stopPropagation(); controls.reload = true; }}
               >
-                <RotateCw className="text-white" />
+                <RotateCw className="text-white w-8 h-8" />
               </button>
               <button
-                className="w-16 h-16 bg-yellow-500/20 border border-yellow-500 rounded-full flex items-center justify-center active:bg-yellow-500/50"
+                className="w-20 h-20 bg-yellow-500/20 border border-yellow-500 rounded-full flex items-center justify-center active:bg-yellow-500/50 backdrop-blur-sm"
                 onTouchStart={(e) => { e.stopPropagation(); controls.jump = true; }}
               >
-                <Move className="text-yellow-500 rotate-[-90deg]" />
+                <Move className="text-yellow-500 rotate-[-90deg] w-8 h-8" />
               </button>
             </div>
-            <div className="flex gap-4">
+            <div className="flex gap-6 justify-end">
               <button
-                className="w-16 h-16 bg-purple-500/20 border border-purple-500 rounded-full flex items-center justify-center active:bg-purple-500/50"
+                className="w-20 h-20 bg-purple-500/20 border border-purple-500 rounded-full flex items-center justify-center active:bg-purple-500/50 backdrop-blur-sm"
                 onTouchStart={(e) => { e.stopPropagation(); controls.aim = true; }}
                 onTouchEnd={(e) => { e.stopPropagation(); controls.aim = false; }}
               >
-                <AimIcon className="text-purple-500" />
+                <AimIcon className="text-purple-500 w-8 h-8" />
               </button>
               <button
-                className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center active:bg-red-500/50"
+                className="w-24 h-24 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center active:bg-red-500/50 backdrop-blur-sm"
                 onTouchStart={(e) => { e.stopPropagation(); controls.fire = true; }}
                 onTouchEnd={(e) => { e.stopPropagation(); controls.fire = false; }}
               >
-                <Target className="text-red-500 w-8 h-8" />
+                <Target className="text-red-500 w-10 h-10" />
               </button>
             </div>
-            <button
-              className="w-12 h-12 bg-gray-800/80 rounded-full flex items-center justify-center border border-gray-600"
-              onTouchStart={(e) => { e.stopPropagation(); controls.crouch = true; }}
-              onTouchEnd={(e) => { e.stopPropagation(); controls.crouch = false; }}
-            >
-              <Minimize2 className="text-white w-5 h-5" />
-            </button>
+            <div className="flex justify-end">
+              <button
+                className="w-16 h-16 bg-gray-800/80 rounded-full flex items-center justify-center border border-gray-600 backdrop-blur-sm"
+                onTouchStart={(e) => { e.stopPropagation(); controls.crouch = true; }}
+                onTouchEnd={(e) => { e.stopPropagation(); controls.crouch = false; }}
+              >
+                <Minimize2 className="text-white w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           {/* Weapon Switcher (Center Bottom) */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20" onTouchStart={(e) => e.stopPropagation()}>
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-4 z-20" onTouchStart={(e) => e.stopPropagation()}>
             {[1, 2, 3, 0].map(num => (
               <button
                 key={num}
-                className={`w-12 h-12 flex items-center justify-center border rounded font-bold text-xl ${(num === 1 && currentWeapon === 'RIFLE') ||
+                className={`w-14 h-14 flex items-center justify-center border rounded-lg font-bold text-xl transition-all active:scale-95 ${(num === 1 && currentWeapon === 'RIFLE') ||
                   (num === 2 && currentWeapon === 'PISTOL') ||
                   (num === 3 && currentWeapon === 'KNIFE') ||
                   (num === 0 && currentWeapon === 'SNIPER')
-                  ? 'bg-cyan-600 text-white border-cyan-400'
+                  ? 'bg-cyan-600 text-white border-cyan-400 shadow-[0_0_10px_cyan]'
                   : 'bg-black/60 text-white/50 border-white/20'
                   }`}
                 onTouchStart={(e) => {
@@ -672,7 +702,7 @@ export const UI = () => {
                   if (num === 0) controls.weapon4 = true;
                 }}
               >
-                {num}
+                {num === 0 ? 'S' : num}
               </button>
             ))}
           </div>

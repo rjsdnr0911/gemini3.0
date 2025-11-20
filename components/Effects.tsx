@@ -194,7 +194,7 @@ export const Effects = () => {
       </instancedMesh>
 
       {/* Tracers */}
-      <instancedMesh ref={tracerMeshRef} args={[undefined, undefined, MAX_TRACERS]}>
+      <instancedMesh ref={tracerMeshRef} args={[undefined, undefined, MAX_TRACERS]} frustumCulled={false}>
         <cylinderGeometry args={[1, 1, 1, 6]} />
         <meshBasicMaterial toneMapped={false} transparent opacity={0.8} />
       </instancedMesh>

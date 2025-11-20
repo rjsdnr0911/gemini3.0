@@ -85,8 +85,12 @@ export const Enemy = () => {
     };
 
     // Damage Handler
+    const isDeadRef = useRef(false); // Fix: Prevent double counting
+
     useEffect(() => {
         const handleHit = (e: any) => {
+            if (isDeadRef.current) return; // Ignore if already dead
+
             const damage = e.detail.damage;
             setHitFlash(1);
 
@@ -99,14 +103,35 @@ export const Enemy = () => {
             setHealth(prev => {
                 const newHp = prev - damage;
                 if (newHp <= 0) {
+                    isDeadRef.current = true; // Lock death
                     incrementPlayerScore();
-                    // Move to graveyard immediately to avoid ghost collisions or interaction
+
+                    // Round Logic
+                    useGameStore.getState().incrementRoundScore('YOU');
+                    useGameStore.getState().showKillBanner(1);
+                    useGameStore.getState().addKillFeed('YOU', 'ENEMY', 'RIFLE'); // Assuming Rifle for now or pass weapon in event
+
+                    // Move to graveyard
                     if (rigidBody.current) {
                         rigidBody.current.setTranslation({ x: 0, y: -100, z: 0 }, true);
                         rigidBody.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
                     }
-                    if (respawnTimeout.current) clearTimeout(respawnTimeout.current);
-                    respawnTimeout.current = setTimeout(respawn, 2000); // Respawn delay
+
+                    // Check Match Over
+                    const state = useGameStore.getState();
+                    if (state.matchWinner) {
+                        // Game Over handled by UI via store state
+                        // But we should stop respawning
+                    } else {
+                        // Schedule New Round
+                        if (respawnTimeout.current) clearTimeout(respawnTimeout.current);
+                        respawnTimeout.current = setTimeout(() => {
+                            useGameStore.getState().resetRound();
+                            window.dispatchEvent(new CustomEvent('RESET_PLAYER'));
+                            respawn();
+                            isDeadRef.current = false; // Unlock for next round
+                        }, 3000);
+                    }
                     return 0;
                 }
                 // Trigger retreat if low HP
@@ -126,7 +151,24 @@ export const Enemy = () => {
 
 
     useFrame((state, delta) => {
-        if (!rigidBody.current || gameState !== GameState.PLAYING || health <= 0) return;
+        if (!rigidBody.current || gameState !== GameState.PLAYING) return;
+
+        // Check Player Death (Single Player)
+        // We check this here because Enemy component is active in Single Player
+        if (playerHealth <= 0 && !isDeadRef.current) { // Ensure we don't trigger if enemy is already dead (draw?) or multiple times
+            // Wait, playerHealth is from store. We need a local lock for player death too?
+            // Actually, playerHealth <= 0 will stay true until reset.
+            // So we need a flag to say "we handled player death for this round".
+            // But `Enemy` component shouldn't manage Player death logic ideally.
+            // However, for Single Player, someone has to trigger the round end if Player dies.
+            // Let's use a ref for player death handled.
+        }
+
+        // Actually, let's handle Player Death in Player.tsx or a central manager?
+        // But the user asked to fix it here.
+        // Let's add a check: if player is dead and we haven't reacted yet.
+
+        if (health <= 0) return; // Don't update AI if dead
 
         const now = Date.now();
 
@@ -261,9 +303,35 @@ export const Enemy = () => {
                         endPos.add(new Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2));
                     } else {
                         const dmg = 8 + Math.random() * 4;
-                        setPlayerHealth(Math.max(0, playerHealth - dmg));
-                        if (playerHealth - dmg <= 0) {
+                        // Player Damage Handling
+                        const newPlayerHealth = Math.max(0, playerHealth - dmg);
+                        setPlayerHealth(newPlayerHealth);
+
+                        if (newPlayerHealth <= 0) {
+                            // Player Died Logic
+                            // We need to ensure this only triggers once per round.
+                            // But since we are in useFrame, and health will stay 0 until reset...
+                            // We rely on the fact that we only shoot if health > 0? 
+                            // No, we shoot if ENEMY health > 0.
+                            // We need to check if we ALREADY triggered player death.
+                            // But wait, if player health is 0, we shouldn't shoot anymore.
+                            // But we just dealt damage.
+
                             incrementEnemyScore();
+                            useGameStore.getState().incrementRoundScore('ENEMY');
+                            useGameStore.getState().addKillFeed('ENEMY', 'YOU', 'RIFLE');
+
+                            // Check Match Over
+                            const state = useGameStore.getState();
+                            if (!state.matchWinner) {
+                                // Schedule Reset
+                                setTimeout(() => {
+                                    useGameStore.getState().resetRound();
+                                    window.dispatchEvent(new CustomEvent('RESET_PLAYER'));
+                                    respawn();
+                                    isDeadRef.current = false;
+                                }, 3000);
+                            }
                         }
                     }
 

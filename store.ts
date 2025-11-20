@@ -66,6 +66,7 @@ interface GameStore {
   roundsWon: number;
   opponentRoundsWon: number;
   roundWinner: string | null; // 'YOU' or 'ENEMY'
+  matchWinner: string | null; // 'YOU' or 'ENEMY'
   incrementRoundScore: (winner: 'YOU' | 'ENEMY') => void;
   resetRound: () => void;
 
@@ -76,6 +77,12 @@ interface GameStore {
     volume: number;
   };
   updateSettings: (settings: Partial<{ sensitivity: number; zoomSensitivity: number; volume: number }>) => void;
+
+  // Nickname
+  nickname: string;
+  opponentNickname: string;
+  setNickname: (name: string) => void;
+  setOpponentNickname: (name: string) => void;
 }
 
 const INITIAL_STATS: MatchStats = {
@@ -186,6 +193,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     opponentPeerId: null,
     connectionStatus: 'DISCONNECTED',
     remotePlayer: null,
+
+    // Reset Round State
+    roundsWon: 0,
+    opponentRoundsWon: 0,
+    roundWinner: null,
+    matchWinner: null,
   }),
 
   killFeed: [],
@@ -234,9 +247,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
   roundsWon: 0,
   opponentRoundsWon: 0,
   roundWinner: null,
+  matchWinner: null,
   incrementRoundScore: (winner) => set((state) => {
-    if (winner === 'YOU') return { roundsWon: state.roundsWon + 1, roundWinner: 'YOU' };
-    else return { opponentRoundsWon: state.opponentRoundsWon + 1, roundWinner: 'ENEMY' };
+    let newRoundsWon = state.roundsWon;
+    let newOpponentRoundsWon = state.opponentRoundsWon;
+    let matchWinner = null;
+
+    if (winner === 'YOU') {
+      newRoundsWon += 1;
+      if (newRoundsWon >= 3) matchWinner = 'YOU';
+    } else {
+      newOpponentRoundsWon += 1;
+      if (newOpponentRoundsWon >= 3) matchWinner = 'ENEMY';
+    }
+
+    // If match won, set Game Over
+    if (matchWinner) {
+      // We don't set GAME_OVER here immediately, we let the UI or NetworkManager handle the transition
+      // But for state consistency, we can set it.
+      // Actually, NetworkManager handles the flow.
+    }
+
+    return {
+      roundsWon: newRoundsWon,
+      opponentRoundsWon: newOpponentRoundsWon,
+      roundWinner: winner,
+      matchWinner: matchWinner
+    };
   }),
   resetRound: () => set({
     health: 100,
@@ -259,5 +296,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   updateSettings: (newSettings) => set((state) => ({
     settings: { ...state.settings, ...newSettings }
-  }))
+  })),
+
+  // Nickname System
+  nickname: localStorage.getItem('neon_frag_nickname') || `Player${Math.floor(Math.random() * 1000)}`,
+  opponentNickname: 'Enemy',
+
+  setNickname: (name) => {
+    localStorage.setItem('neon_frag_nickname', name);
+    set({ nickname: name });
+  },
+  setOpponentNickname: (name) => set({ opponentNickname: name }),
 }));

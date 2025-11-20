@@ -121,17 +121,44 @@ export const NetworkManager = () => {
                 const hitWeapon = packet.payload.weapon;
                 const newHealth = Math.max(0, useGameStore.getState().health - dmg);
                 setHealth(newHealth);
+
                 if (newHealth <= 0) {
+                    // I died. I tell the killer they killed me.
+                    // AND I tell everyone the round ended with the killer as winner.
+
+                    const myId = peerRef.current?.id;
+                    const killerId = connRef.current?.peer; // The other guy
+
                     connRef.current?.send({
                         type: 'KILL',
                         payload: {
-                            victim: peerRef.current?.id,
+                            victim: myId,
                             weapon: hitWeapon
                         }
                     });
-                    setGameState(GameState.GAME_OVER);
+
+                    // Determine Round Winner (Killer won)
+                    // If I died, the ENEMY (Host or Client) won.
+                    // But wait, 'winner' in payload should be 'HOST' or 'CLIENT'.
+                    const winnerRole = isHost ? 'CLIENT' : 'HOST'; // If I am Host and died, Client won.
+
+                    connRef.current?.send({
+                        type: 'ROUND_END',
+                        payload: { winner: winnerRole }
+                    });
+
+                    // Also trigger local round end
+                    useGameStore.getState().incrementRoundScore('ENEMY'); // I lost
+
+                    // Show Kill Banner locally
                     useGameStore.getState().addKillFeed('Enemy', 'Player', hitWeapon);
-                    useGameStore.getState().showKillBanner(1);
+                    useGameStore.getState().showKillBanner(1); // Just visual
+
+                    // Check for Match Over locally
+                    const state = useGameStore.getState();
+                    if (state.opponentRoundsWon >= 3) {
+                        setGameState(GameState.GAME_OVER);
+                    }
                 }
                 break;
             case 'KILL':
@@ -144,9 +171,26 @@ export const NetworkManager = () => {
                 setGameState(GameState.PLAYING);
                 break;
             case 'ROUND_END':
-                const winner = packet.payload.winner;
-                useGameStore.getState().incrementRoundScore(winner === 'HOST' ? (useGameStore.getState().isHost ? 'YOU' : 'ENEMY') : (useGameStore.getState().isHost ? 'ENEMY' : 'YOU'));
-                useGameStore.getState().addChatMessage('SYSTEM', `Round Won by ${winner === 'HOST' ? 'HOST' : 'CLIENT'}!`);
+                const winner = packet.payload.winner; // 'HOST' or 'CLIENT'
+                const amIHost = useGameStore.getState().isHost;
+                const didIWin = (winner === 'HOST' && amIHost) || (winner === 'CLIENT' && !amIHost);
+
+                useGameStore.getState().incrementRoundScore(didIWin ? 'YOU' : 'ENEMY');
+                useGameStore.getState().addChatMessage('SYSTEM', `Round Won by ${didIWin ? 'YOU' : 'ENEMY'}!`);
+
+                // Check Match Over
+                const currentState = useGameStore.getState();
+                if (currentState.matchWinner) {
+                    setGameState(GameState.GAME_OVER);
+                } else if (amIHost) {
+                    // If match not over, Host schedules new round
+                    setTimeout(() => {
+                        connRef.current?.send({ type: 'NEW_ROUND' });
+                        useGameStore.getState().resetRound();
+                        window.dispatchEvent(new CustomEvent('RESET_PLAYER'));
+                        useGameStore.getState().addChatMessage('SYSTEM', 'New Round Started!');
+                    }, 3000);
+                }
                 break;
             case 'NEW_ROUND':
                 useGameStore.getState().resetRound();
@@ -244,14 +288,10 @@ export const NetworkManager = () => {
         const sendReady = (e: any) => {
             console.log('Attempting to send READY:', e.detail.isReady);
             if (connRef.current) {
-                console.log('Connection open status:', connRef.current.open);
                 connRef.current.send({
                     type: 'READY',
                     payload: { isReady: e.detail.isReady }
                 });
-                console.log('READY packet sent');
-            } else {
-                console.warn('Cannot send READY: Connection not open');
             }
         };
 
@@ -266,7 +306,7 @@ export const NetworkManager = () => {
 
         window.addEventListener('PLAYER_UPDATE', sendUpdate);
         window.addEventListener('SHOOT', sendShoot);
-        window.addEventListener('ENEMY_HIT', sendHit); // Listen for hits on RemotePlayer
+        window.addEventListener('ENEMY_HIT', sendHit);
         window.addEventListener('SEND_CHAT', sendChat);
         window.addEventListener('SEND_READY', sendReady);
         window.addEventListener('START_GAME', startGame);

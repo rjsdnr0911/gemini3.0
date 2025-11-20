@@ -43,7 +43,7 @@ export const RemotePlayer = () => {
                 outlineWidth={0.02}
                 outlineColor="#000000"
             >
-                ENEMY
+                {useGameStore.getState().opponentNickname}
             </Text>
 
             {/* Hitbox (Invisible but present for raycasts) */}
